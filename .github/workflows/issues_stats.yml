@@ -1,0 +1,39 @@
+name: 'Ingest Issue'
+
+on:
+  workflow_call:
+    inputs:
+      issue_payload:
+        description: 'The issue payload as a json string'
+        type: 'string'
+        required: true
+    secrets:
+      ES_CLOUD_ID:
+        required: true
+      ES_API_KEY:
+        required: true
+
+jobs:
+  main:
+    name: 'Ingest Issue'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
+        with:
+          cache-dependency-path: '**/package-lock.json'
+          node-version: 20
+          cache: 'npm'
+
+      - name: 'Ingest'
+        env:
+          ES_CLOUD_ID: ${{ secrets.ES_CLOUD_ID }}
+          ES_API_KEY: ${{ secrets.ES_API_KEY }}
+          PAYLOAD: ${{ inputs.issue_payload }}
+        run: |-
+          cd "${{ github.workspace }}/ingest"
+          npm install
+          npm start
