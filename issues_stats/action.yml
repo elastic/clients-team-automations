@@ -1,0 +1,35 @@
+name: 'Ingest Issue'
+
+inputs:
+  issue_payload:
+    description: 'The issue payload as a json string'
+    type: 'string'
+    required: true
+  es_cloud_id:
+    description: 'The Elasticsearch Cloud ID'
+    type: 'string'
+    required: true
+  es_api_key:
+    description: 'The Elasticsearch API key'
+    type: 'string':
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Set up Node'
+      uses: actions/setup-node@v4
+      with:
+        cache-dependency-path: '${{ github.action_path }}/**/package-lock.json'
+        node-version: 20
+        cache: 'npm'
+
+    - name: 'Ingest'
+      env:
+        ES_CLOUD_ID: ${{ inputs.es_cloud_id }}
+        ES_API_KEY: ${{ inputs.es_api_key }}
+        PAYLOAD: ${{ inputs.issue_payload }}
+      run: |-
+        cd "${{ github.action_path }}/ingest"
+        npm install
+        npm start
