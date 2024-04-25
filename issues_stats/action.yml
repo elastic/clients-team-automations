@@ -29,6 +29,7 @@ runs:
         ES_CLOUD_ID: ${{ inputs.es_cloud_id }}
         ES_API_KEY: ${{ inputs.es_api_key }}
         PAYLOAD: ${{ inputs.issue_payload }}
+      shell: 'bash'
       run: |-
         cd "${{ github.action_path }}/ingest"
         npm install
