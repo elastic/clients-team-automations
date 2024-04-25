@@ -11,7 +11,7 @@ inputs:
     required: true
   es_api_key:
     description: 'The Elasticsearch API key'
-    type: 'string':
+    type: 'string'
     required: true
 
 runs:
