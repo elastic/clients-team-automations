@@ -17,15 +17,10 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: 'Determine absolute path'
-      shell: 'bash'
-      run: |-
-        echo "ACTION_PATH=$(realpath '${{ github.action_path }}')" >> $GITHUB_ENV
-
     - name: 'Set up Node'
       uses: actions/setup-node@v4
       with:
-        cache-dependency-path: '${{ env.ACTION_PATH }}/ingest/package-lock.json'
+        use-cache: false
         node-version: 20
         cache: 'npm'
 
