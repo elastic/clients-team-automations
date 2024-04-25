@@ -24,7 +24,7 @@ jobs:
         uses: 'actions/checkout@v4'
 
       - name: 'Ingest Issue'
-        uses: issues_stats
+        uses: ./issues_stats
         with:
           issue_payload: ${{ toJSON(github.event.issue) }}
           es_cloud_id: ${{ vars.ES_CLOUD_ID }}
