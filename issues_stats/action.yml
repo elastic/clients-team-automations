@@ -20,7 +20,7 @@ runs:
     - name: 'Determine absolute path'
       shell: 'bash'
       run: |-
-        echo "ACTION_PATH=$(echo realpath '${{ github.action_path }}')" >> $GITHUB_ENV
+        echo "ACTION_PATH=$(realpath '${{ github.action_path }}')" >> $GITHUB_ENV
 
     - name: 'Set up Node'
       uses: actions/setup-node@v4
