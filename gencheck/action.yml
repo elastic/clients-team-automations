@@ -1,0 +1,68 @@
+name: 'Check Generated Files'
+description: 'Detects edits to generated files in pull requests with configurable patterns and optional commenting'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access (requires contents: read, pull-requests: write)'
+    required: true
+  file_patterns:
+    description: 'Comma-separated glob patterns for files to check (e.g., "**/*.go,**/*.ts")'
+    required: false
+    default: '**/*.go'
+  marker_patterns:
+    description: 'Comma-separated regex patterns to detect generated file markers'
+    required: false
+    default: 'Code generated.*DO NOT EDIT,Code generated from.*specification'
+  skip_label:
+    description: 'Label name that allows skipping this check'
+    required: false
+    default: 'skip: gencheck'
+  post_comment:
+    description: 'Whether to post a comment on the PR when generated files are detected'
+    required: false
+    default: 'true'
+  fail_on_detected:
+    description: 'Whether to fail the check when generated files are detected (without skip label)'
+    required: false
+    default: 'true'
+  comment_template:
+    description: 'Custom comment template with variables: {{file_count}}, {{file_list}}, {{skip_label}}, {{pr_number}}, {{repo}}, {{owner}}'
+    required: false
+    default: ''
+
+outputs:
+  detected:
+    description: 'Boolean string indicating if generated files were found (true/false)'
+    value: ${{ steps.check.outputs.detected }}
+  files:
+    description: 'JSON array of detected generated files'
+    value: ${{ steps.check.outputs.files }}
+  skipped:
+    description: 'Boolean string indicating if check was skipped due to label (true/false)'
+    value: ${{ steps.check.outputs.skipped }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Set up Node'
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+      with:
+        node-version: 25
+
+    - name: 'Check Generated Files'
+      id: check
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        FILE_PATTERNS: ${{ inputs.file_patterns }}
+        MARKER_PATTERNS: ${{ inputs.marker_patterns }}
+        SKIP_LABEL: ${{ inputs.skip_label }}
+        POST_COMMENT: ${{ inputs.post_comment }}
+        FAIL_ON_DETECTED: ${{ inputs.fail_on_detected }}
+        COMMENT_TEMPLATE: ${{ inputs.comment_template }}
+      shell: 'bash'
+      run: |-
+        cd "${{ github.action_path }}/check"
+        npm install --silent
+        npm run build
+        node dist/index.js
+
