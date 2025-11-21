@@ -1,0 +1,362 @@
+import * as core from '@actions/core';
+import * as github from '@actions/github';
+import { Octokit } from '@octokit/rest';
+import { minimatch } from 'minimatch';
+
+// Comment marker for identifying bot comments
+const COMMENT_MARKER = '<!-- gencheck-bot -->';
+
+interface EnvConfig {
+  token: string;
+  filePatterns: string[];
+  markerPatterns: string[];
+  skipLabel: string;
+  postComment: boolean;
+  failOnDetected: boolean;
+  commentTemplate: string;
+}
+
+async function run(): Promise<void> {
+  try {
+    // Get environment variables
+    const config: EnvConfig = {
+      token: process.env.GITHUB_TOKEN || '',
+      filePatterns: (process.env.FILE_PATTERNS || '').split(',').map(p => p.trim()),
+      markerPatterns: (process.env.MARKER_PATTERNS || '').split(',').map(p => p.trim()),
+      skipLabel: process.env.SKIP_LABEL || '',
+      postComment: process.env.POST_COMMENT === 'true',
+      failOnDetected: process.env.FAIL_ON_DETECTED === 'true',
+      commentTemplate: process.env.COMMENT_TEMPLATE || ''
+    };
+
+    // Initialize Octokit
+    const octokit = new Octokit({ auth: config.token });
+
+    // Get PR context
+    const context = github.context;
+    
+    // Check if this is a pull request event
+    if (!context.payload.pull_request) {
+      console.log('Not a pull request event, skipping check');
+      core.setOutput('detected', 'false');
+      core.setOutput('files', '[]');
+      core.setOutput('skipped', 'true');
+      return;
+    }
+
+    const pr = context.payload.pull_request;
+    const owner = context.repo.owner;
+    const repo = context.repo.repo;
+    const pullNumber = pr.number;
+
+    console.log(`Checking PR #${pullNumber} in ${owner}/${repo}`);
+
+    // Check for skip label
+    const labels = pr.labels.map((label: { name: string }) => label.name);
+    const hasSkipLabel = labels.includes(config.skipLabel);
+
+    if (hasSkipLabel) {
+      console.log(`Skip label "${config.skipLabel}" found, skipping check`);
+      
+      // If comment posting is enabled, update/remove warning comment
+      if (config.postComment) {
+        await removeOrUpdateComment(octokit, owner, repo, pullNumber, true);
+      }
+      
+      core.setOutput('detected', 'false');
+      core.setOutput('files', '[]');
+      core.setOutput('skipped', 'true');
+      return;
+    }
+
+    // Fetch list of changed files
+    console.log('Fetching changed files...');
+    const { data: files } = await octokit.pulls.listFiles({
+      owner,
+      repo,
+      pull_number: pullNumber,
+      per_page: 100
+    });
+
+    console.log(`Found ${files.length} changed files`);
+
+    // Filter files matching patterns
+    const matchedFiles = files.filter(file => {
+      return config.filePatterns.some(pattern => minimatch(file.filename, pattern));
+    });
+
+    console.log(`${matchedFiles.length} files match the patterns`);
+
+    // Check each matched file for generated markers
+    const generatedFiles: string[] = [];
+    
+    for (const file of matchedFiles) {
+      // Skip deleted files
+      if (file.status === 'removed') {
+        continue;
+      }
+
+      console.log(`Checking ${file.filename}...`);
+      
+      const isGenerated = await checkIfGenerated(
+        octokit,
+        owner,
+        repo,
+        pr.head.sha,
+        file.filename,
+        config.markerPatterns
+      );
+
+      if (isGenerated) {
+        console.log(`✗ ${file.filename} is a generated file`);
+        generatedFiles.push(file.filename);
+      } else {
+        console.log(`✓ ${file.filename} is not generated`);
+      }
+    }
+
+    // Set outputs
+    const detected = generatedFiles.length > 0;
+    core.setOutput('detected', detected.toString());
+    core.setOutput('files', JSON.stringify(generatedFiles));
+    core.setOutput('skipped', 'false');
+
+    // Handle commenting
+    if (detected && config.postComment) {
+      await createOrUpdateComment(
+        octokit,
+        owner,
+        repo,
+        pullNumber,
+        generatedFiles,
+        config.skipLabel,
+        config.commentTemplate
+      );
+    } else if (!detected && config.postComment) {
+      // Remove warning comment if no generated files found
+      await removeOrUpdateComment(octokit, owner, repo, pullNumber, false);
+    }
+
+    // Handle failure
+    if (detected && config.failOnDetected) {
+      core.setFailed(
+        `Found ${generatedFiles.length} generated file(s) modified. ` +
+        `Add the "${config.skipLabel}" label to bypass this check if intentional.`
+      );
+    } else if (detected) {
+      console.log(`⚠️  Found ${generatedFiles.length} generated file(s) modified`);
+    } else {
+      console.log('✓ No generated files modified');
+    }
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    core.setFailed(`Action failed: ${errorMessage}`);
+    console.error(error);
+  }
+}
+
+/**
+ * Check if a file is generated by examining its first 25 lines
+ */
+async function checkIfGenerated(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ref: string,
+  path: string,
+  markerPatterns: string[]
+): Promise<boolean> {
+  try {
+    // Fetch file content
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref
+    });
+
+    // Type guard to ensure data is a file (not directory or submodule)
+    if (!('content' in data) || Array.isArray(data)) {
+      return false;
+    }
+
+    // Decode content
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    
+    // Get first 25 lines
+    const lines = content.split('\n').slice(0, 25);
+    const header = lines.join('\n');
+
+    // Check if any marker pattern matches
+    return markerPatterns.some(pattern => {
+      try {
+        const regex = new RegExp(pattern, 'i');
+        return regex.test(header);
+      } catch (error) {
+        console.warn(`Invalid regex pattern: ${pattern}`);
+        return false;
+      }
+    });
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn(`Could not check file ${path}: ${errorMessage}`);
+    return false;
+  }
+}
+
+/**
+ * Create or update a comment on the PR
+ */
+async function createOrUpdateComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  files: string[],
+  skipLabel: string,
+  template: string
+): Promise<void> {
+  try {
+    // Search for existing comment
+    const { data: comments } = await octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: pullNumber
+    });
+
+    const existingComment = comments.find(comment => 
+      comment.body && comment.body.includes(COMMENT_MARKER)
+    );
+
+    // Build comment body
+    const body = buildCommentBody(files, skipLabel, owner, repo, pullNumber, template);
+
+    if (existingComment) {
+      // Update existing comment
+      await octokit.issues.updateComment({
+        owner,
+        repo,
+        comment_id: existingComment.id,
+        body
+      });
+      console.log('Updated existing comment');
+    } else {
+      // Create new comment
+      await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: pullNumber,
+        body
+      });
+      console.log('Created new comment');
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to post comment: ${errorMessage}`);
+  }
+}
+
+/**
+ * Remove or update comment when check passes
+ */
+async function removeOrUpdateComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  skipped: boolean
+): Promise<void> {
+  try {
+    const { data: comments } = await octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: pullNumber
+    });
+
+    const existingComment = comments.find(comment => 
+      comment.body && comment.body.includes(COMMENT_MARKER)
+    );
+
+    if (existingComment) {
+      if (skipped) {
+        // Update comment to show check was skipped
+        const body = `${COMMENT_MARKER}\n\n✓ **Generated Files Check Skipped**\n\nThis check was skipped due to the presence of the skip label.`;
+        await octokit.issues.updateComment({
+          owner,
+          repo,
+          comment_id: existingComment.id,
+          body
+        });
+        console.log('Updated comment to show check was skipped');
+      } else {
+        // Delete comment when check passes
+        await octokit.issues.deleteComment({
+          owner,
+          repo,
+          comment_id: existingComment.id
+        });
+        console.log('Deleted warning comment');
+      }
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to update/remove comment: ${errorMessage}`);
+  }
+}
+
+/**
+ * Build the comment body with file list
+ */
+function buildCommentBody(
+  files: string[], 
+  skipLabel: string,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  template: string
+): string {
+  const fileList = files.map(file => `- \`${file}\``).join('\n');
+  
+  // If custom template is provided, use it with variable substitution
+  if (template && template.trim() !== '') {
+    const customBody = template
+      .replace(/\{\{file_count\}\}/g, files.length.toString())
+      .replace(/\{\{file_list\}\}/g, fileList)
+      .replace(/\{\{skip_label\}\}/g, skipLabel)
+      .replace(/\{\{pr_number\}\}/g, pullNumber.toString())
+      .replace(/\{\{repo\}\}/g, repo)
+      .replace(/\{\{owner\}\}/g, owner);
+    
+    return `${COMMENT_MARKER}\n\n${customBody}`;
+  }
+  
+  // Default template - generic with options to add label or raise issue
+  return `${COMMENT_MARKER}
+
+## ⚠️ Generated Files Modified
+
+This PR modifies **${files.length}** generated file(s):
+
+${fileList}
+
+Generated files are typically created automatically and manual edits may be overwritten.
+
+### Options
+
+- **Add the \`${skipLabel}\` label** to this PR if these changes are intentional
+- **[Open an issue](https://github.com/${owner}/${repo}/issues/new)** to discuss if you're unsure how to proceed
+
+<details>
+<summary>More information</summary>
+
+This check detects files with generation markers like \`Code generated ... DO NOT EDIT\`.
+
+If this is incorrect, review the file patterns and marker patterns in the workflow configuration.
+</details>`;
+}
+
+// Run the action
+run();
+

@@ -1,0 +1,22 @@
+{
+  "name": "gencheck",
+  "version": "1.0.0",
+  "description": "Check for edits to generated files in pull requests",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1",
+    "@octokit/rest": "^20.1.2",
+    "minimatch": "^9.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.25",
+    "typescript": "^5.9.3"
+  }
+}
