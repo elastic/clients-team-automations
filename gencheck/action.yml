@@ -62,7 +62,7 @@ runs:
       shell: 'bash'
       run: |-
         cd "${{ github.action_path }}/check"
-        npm install --silent
+        npm ci --silent --ignore-scripts
         npm run build
         node dist/index.js
 

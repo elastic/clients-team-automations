@@ -34,7 +34,7 @@ async function run(): Promise<void> {
 
     // Get PR context
     const context = github.context;
-    
+
     // Check if this is a pull request event
     if (!context.payload.pull_request) {
       console.log('Not a pull request event, skipping check');
@@ -57,12 +57,12 @@ async function run(): Promise<void> {
 
     if (hasSkipLabel) {
       console.log(`Skip label "${config.skipLabel}" found, skipping check`);
-      
+
       // If comment posting is enabled, update/remove warning comment
       if (config.postComment) {
         await removeOrUpdateComment(octokit, owner, repo, pullNumber, true);
       }
-      
+
       core.setOutput('detected', 'false');
       core.setOutput('files', '[]');
       core.setOutput('skipped', 'true');
@@ -89,7 +89,7 @@ async function run(): Promise<void> {
 
     // Check each matched file for generated markers
     const generatedFiles: string[] = [];
-    
+
     for (const file of matchedFiles) {
       // Skip deleted files
       if (file.status === 'removed') {
@@ -97,7 +97,7 @@ async function run(): Promise<void> {
       }
 
       console.log(`Checking ${file.filename}...`);
-      
+
       const isGenerated = await checkIfGenerated(
         octokit,
         owner,
@@ -183,7 +183,7 @@ async function checkIfGenerated(
 
     // Decode content
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    
+
     // Get first 25 lines
     const lines = content.split('\n').slice(0, 25);
     const header = lines.join('\n');
@@ -226,7 +226,7 @@ async function createOrUpdateComment(
       issue_number: pullNumber
     });
 
-    const existingComment = comments.find(comment => 
+    const existingComment = comments.find(comment =>
       comment.body && comment.body.includes(COMMENT_MARKER)
     );
 
@@ -275,7 +275,7 @@ async function removeOrUpdateComment(
       issue_number: pullNumber
     });
 
-    const existingComment = comments.find(comment => 
+    const existingComment = comments.find(comment =>
       comment.body && comment.body.includes(COMMENT_MARKER)
     );
 
@@ -310,7 +310,7 @@ async function removeOrUpdateComment(
  * Build the comment body with file list
  */
 function buildCommentBody(
-  files: string[], 
+  files: string[],
   skipLabel: string,
   owner: string,
   repo: string,
@@ -318,7 +318,7 @@ function buildCommentBody(
   template: string
 ): string {
   const fileList = files.map(file => `- \`${file}\``).join('\n');
-  
+
   // If custom template is provided, use it with variable substitution
   if (template && template.trim() !== '') {
     const customBody = template
@@ -328,10 +328,10 @@ function buildCommentBody(
       .replace(/\{\{pr_number\}\}/g, pullNumber.toString())
       .replace(/\{\{repo\}\}/g, repo)
       .replace(/\{\{owner\}\}/g, owner);
-    
+
     return `${COMMENT_MARKER}\n\n${customBody}`;
   }
-  
+
   // Default template - generic with options to add label or raise issue
   return `${COMMENT_MARKER}
 
@@ -358,5 +358,5 @@ If this is incorrect, review the file patterns and marker patterns in the workfl
 }
 
 // Run the action
-run();
+run().then(() => {}, error => core.setFailed(error.message));
 
