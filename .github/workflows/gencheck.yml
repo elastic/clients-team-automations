@@ -22,7 +22,7 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       - name: 'Check for Generated Files'
-        uses: elastic/gencheck@main
+        uses: ./gencheck
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           file_patterns: '**/*.go,**/*.pb.go'
@@ -32,18 +32,18 @@ jobs:
           fail_on_detected: 'true'
           comment_template: |
             ## 🤖 Generated Code Modified
-            
+
             This PR modifies **{{file_count}}** generated file(s):
-            
+
             {{file_list}}
-            
+
             ### What should I do?
-            
+
             Generated files are typically auto-generated and manual edits may be lost on regeneration.
-            
+
             **Options:**
             - ✅ Add the `{{skip_label}}` label if these changes are intentional
             - 💬 [Open an issue](https://github.com/{{owner}}/{{repo}}/issues/new) to discuss if you're unsure
-            
+
             _This check can be bypassed by adding the skip label to PR #{{pr_number}}_
 
