@@ -1,0 +1,24 @@
+{
+  "name": "update-changelog",
+  "version": "1.0.0",
+  "description": "Generate changelog from GitHub releases",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1",
+    "@octokit/rest": "^20.1.2",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.25",
+    "@types/semver": "^7.5.8",
+    "typescript": "^5.9.3"
+  }
+}
+

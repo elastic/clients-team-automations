@@ -1,0 +1,65 @@
+name: 'Update Changelog'
+description: 'Generates a changelog from GitHub releases, commits it to a branch, and opens a PR'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access (requires contents: write, pull-requests: write)'
+    required: true
+  title:
+    description: 'Title for the changelog'
+    required: false
+    default: 'Changelog'
+  min_version:
+    description: 'Minimum semver version to include in the changelog'
+    required: false
+    default: '0.2.0'
+  releases_per_page:
+    description: 'Number of releases to fetch per page'
+    required: false
+    default: '100'
+  max_version_branch_regex:
+    description: 'Regex pattern to detect branch-based max version (e.g., "^\\d+\\.\\d+$")'
+    required: false
+    default: '^\d+\.\d+$'
+  changelog_path:
+    description: 'Path to the changelog file to update'
+    required: false
+    default: 'CHANGELOG.md'
+
+outputs:
+  changelog:
+    description: 'The generated changelog markdown'
+    value: ${{ steps.generate.outputs.changelog }}
+  pr_url:
+    description: 'URL of the created/updated pull request'
+    value: ${{ steps.generate.outputs.pr_url }}
+  pr_number:
+    description: 'Number of the created/updated pull request'
+    value: ${{ steps.generate.outputs.pr_number }}
+  branch:
+    description: 'Name of the branch created for the changelog update'
+    value: ${{ steps.generate.outputs.branch }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Set up Node'
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+      with:
+        node-version: 25
+
+    - name: 'Generate Changelog'
+      id: generate
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        CHANGELOG_TITLE: ${{ inputs.title }}
+        MIN_VERSION: ${{ inputs.min_version }}
+        RELEASES_PER_PAGE: ${{ inputs.releases_per_page }}
+        MAX_VERSION_BRANCH_REGEX: ${{ inputs.max_version_branch_regex }}
+        CHANGELOG_PATH: ${{ inputs.changelog_path }}
+      shell: 'bash'
+      run: |-
+        cd "${{ github.action_path }}/action"
+        npm ci --silent --ignore-scripts
+        npm run build
+        node dist/index.js
