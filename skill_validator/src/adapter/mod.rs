@@ -132,9 +132,6 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .map(|a| FieldValue::from(a.as_str()))
                     .unwrap_or(FieldValue::Null)
             }),
-            ("Skill", "expected_name") => resolve_property_with(contexts, |v| {
-                v.as_skill().unwrap().expected_name.clone().into()
-            }),
             ("Skill", "description_length") => resolve_property_with(contexts, |v| {
                 v.as_skill().unwrap().description_length.into()
             }),
@@ -183,15 +180,6 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
             ("DiscoveredSkillFile", "depth") => resolve_property_with(contexts, |v| {
                 v.as_discovered_skill_file().unwrap().depth.into()
             }),
-            ("DiscoveredSkillFile", "is_valid_location") => {
-                resolve_property_with(contexts, |v| {
-                    v.as_discovered_skill_file()
-                        .unwrap()
-                        .is_valid_location
-                        .into()
-                })
-            }
-
             // --- Section properties ---
             ("Section", "level") => resolve_property_with(contexts, |v| {
                 v.as_section().unwrap().level.into()

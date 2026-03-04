@@ -19,7 +19,7 @@ type RootQuery {
     """
     Every SKILL.md file discovered in the repository, regardless of location.
     Includes files at valid depths and invalid depths (flat layout, too deep, etc.).
-    Lints filter on `depth` or `is_valid_location` to detect structural violations.
+    Lints filter on `depth` to detect structural violations.
     """
     DiscoveredSkillFile: [DiscoveredSkillFile!]!
 }
@@ -72,12 +72,6 @@ type Skill {
 
     """The `allowed-tools` field from frontmatter, if present."""
     allowed_tools: String
-
-    """
-    The expected name based on the naming convention.
-    Computed from the `name_pattern` in .skill-validator.toml (default: "<group>-<skill-folder>").
-    """
-    expected_name: String!
 
     """Character count of the description field."""
     description_length: Int!
@@ -154,9 +148,6 @@ type DiscoveredSkillFile {
 
     """Nesting depth under the skills root."""
     depth: Int!
-
-    """Whether this file is at a valid location (correct nesting depth)."""
-    is_valid_location: Boolean!
 
     """The resolved Skill, if this file is at a valid location and parseable."""
     skill: Skill

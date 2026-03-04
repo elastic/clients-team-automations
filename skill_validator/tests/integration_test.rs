@@ -105,11 +105,19 @@ fn detects_mixed_languages() {
 }
 
 #[test]
-fn detects_name_mismatch() {
-    let report = run_lints_on("name_mismatch", &["skill_name_mismatch"]);
-    assert!(report.errors > 0, "expected errors for name_mismatch fixture");
-    assert!(report.findings.iter().any(|f| f.lint_id == "skill_name_mismatch"));
-    insta::assert_snapshot!("name_mismatch", snapshot_report(&report));
+fn detects_name_missing_group_prefix() {
+    let report = run_lints_on("name_mismatch", &["skill_name_missing_group_prefix"]);
+    assert!(report.errors > 0, "expected errors for name_mismatch fixture (group prefix)");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_name_missing_group_prefix"));
+    insta::assert_snapshot!("name_missing_group_prefix", snapshot_report(&report));
+}
+
+#[test]
+fn detects_name_missing_folder_suffix() {
+    let report = run_lints_on("name_mismatch", &["skill_name_missing_folder_suffix"]);
+    assert!(report.errors > 0, "expected errors for name_mismatch fixture (folder suffix)");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_name_missing_folder_suffix"));
+    insta::assert_snapshot!("name_missing_folder_suffix", snapshot_report(&report));
 }
 
 #[test]

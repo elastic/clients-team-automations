@@ -105,7 +105,8 @@ Run `skill-validator --list-lints` to see all lints. Run
 | `skill_missing_frontmatter` | No YAML frontmatter delimiters |
 | `skill_missing_name` | Frontmatter missing `name` field |
 | `skill_missing_description` | Frontmatter missing `description` field |
-| `skill_name_mismatch` | `name` doesn't match `<group>-<folder>` convention |
+| `skill_name_missing_group_prefix` | `name` doesn't start with group folder |
+| `skill_name_missing_folder_suffix` | `name` doesn't end with skill folder |
 | `skill_name_invalid_format` | `name` is not valid kebab-case |
 | `skill_duplicate_name` | Two skills share the same name |
 | `skill_mixed_script_languages` | `scripts/` uses multiple languages |
@@ -285,9 +286,6 @@ Create a `.skill-validator.toml` at your repo root:
 ```toml
 # Path to the skills directory (default: "skills")
 skills_dir = "skills"
-
-# Naming convention template (default: "{{group}}-{{skill}}")
-name_pattern = "{{group}}-{{skill}}"
 
 # Per-lint level overrides
 [lints]

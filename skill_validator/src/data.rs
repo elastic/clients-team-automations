@@ -57,7 +57,6 @@ pub struct SkillData {
     pub license: Option<String>,
     pub compatibility: Option<String>,
     pub allowed_tools: Option<String>,
-    pub expected_name: String,
     pub description_length: i64,
     pub description_word_count: i64,
 
@@ -86,7 +85,6 @@ pub struct DiscoveredSkillFileData {
     pub path: String,
     pub parent_dir: String,
     pub depth: i64,
-    pub is_valid_location: bool,
     pub skill_index: Option<usize>,
     pub span: Arc<SpanData>,
 }
@@ -155,9 +153,7 @@ pub fn load_skills_data(
             .strip_prefix(&skills_dir_abs)
             .unwrap_or(abs_path);
         let depth = skills_rel.components().count() as i64;
-        // depth 3 means: group/skill-name/SKILL.md (valid)
-        // depth 2 means: skill-name/SKILL.md (flat layout, invalid)
-        let is_valid_location = depth == 3;
+        let is_valid_location = depth >= 3;
 
         let parent_dir = skill_dir
             .file_name()
@@ -204,8 +200,6 @@ pub fn load_skills_data(
                 .and_then(|p| p.file_name())
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-
-            let expected_name = config.render_expected_name(&group_folder, &folder_name);
 
             let (has_fm, raw_fm, name, description, license, compatibility, allowed_tools, metadata_entries, fm_span) =
                 match &fm_result.frontmatter {
@@ -265,7 +259,6 @@ pub fn load_skills_data(
                 license,
                 compatibility,
                 allowed_tools,
-                expected_name,
                 description_length: desc_len,
                 description_word_count: desc_words,
                 total_line_count,
@@ -294,7 +287,6 @@ pub fn load_skills_data(
                 path: rel_path,
                 parent_dir,
                 depth,
-                is_valid_location,
                 skill_index,
                 span,
             }));

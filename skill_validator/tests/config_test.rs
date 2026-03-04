@@ -60,32 +60,28 @@ fn run_lints_with_overrides(
 }
 
 #[test]
-fn custom_name_pattern_skill_only() {
-    let config = Config {
-        name_pattern: "{{skill}}".to_string(),
-        ..Config::default()
-    };
+fn skill_only_name_passes_suffix_lint() {
     let report = run_lints_with_config(
         "custom_name_pattern",
-        config,
-        &["skill_name_mismatch"],
+        Config::default(),
+        &["skill_name_missing_folder_suffix"],
     );
     assert_eq!(
         report.errors, 0,
-        "with name_pattern='{{{{skill}}}}', name 'my-skill' should match folder 'my-skill'"
+        "name 'my-skill' ends with folder 'my-skill', suffix lint should not fire"
     );
 }
 
 #[test]
-fn default_name_pattern_fails_for_skill_only_name() {
+fn skill_only_name_fails_prefix_lint() {
     let report = run_lints_with_config(
         "custom_name_pattern",
         Config::default(),
-        &["skill_name_mismatch"],
+        &["skill_name_missing_group_prefix"],
     );
     assert!(
         report.errors > 0,
-        "with default name_pattern, name 'my-skill' should NOT match expected 'test-my-skill'"
+        "name 'my-skill' does not start with group 'test', prefix lint should fire"
     );
 }
 
@@ -231,7 +227,6 @@ fn custom_lint_dirs_fires_on_missing_license() {
 fn missing_config_file_uses_defaults() {
     let config = Config::load(std::path::Path::new("nonexistent.toml"));
     assert_eq!(config.skills_dir, PathBuf::from("skills"));
-    assert_eq!(config.name_pattern, "{{group}}-{{skill}}");
     assert!(config.lints.is_empty());
     assert!(config.custom_lint_dirs.is_empty());
 }
@@ -244,7 +239,6 @@ fn config_load_from_valid_toml() {
         &toml_path,
         r#"
 skills_dir = "my-skills"
-name_pattern = "{{skill}}"
 
 [lints]
 skill_body_too_long = "Deny"
@@ -254,7 +248,6 @@ skill_body_too_long = "Deny"
 
     let config = Config::load(&toml_path);
     assert_eq!(config.skills_dir, PathBuf::from("my-skills"));
-    assert_eq!(config.name_pattern, "{{skill}}");
     assert_eq!(
         config.lints.get("skill_body_too_long"),
         Some(&LintLevel::Deny)
