@@ -18,6 +18,7 @@ pub struct LintFinding {
     pub detail: Option<String>,
     pub filename: Option<String>,
     pub line: Option<i64>,
+    pub end_line: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -108,6 +109,7 @@ pub fn run_all_lints_with_root(
                     detail: None,
                     filename: None,
                     line: None,
+                    end_line: None,
                 });
                 errors += 1;
                 continue;
@@ -128,6 +130,7 @@ pub fn run_all_lints_with_root(
 
             let filename = find_field_string(row, &["span_filename", "filename"]);
             let line = find_field_i64(row, &["span_begin_line", "begin_line"]);
+            let end_line = find_field_i64(row, &["span_end_line", "end_line"]);
 
             findings.push(LintFinding {
                 lint_id: lint.id.clone(),
@@ -136,6 +139,7 @@ pub fn run_all_lints_with_root(
                 detail,
                 filename,
                 line,
+                end_line,
             });
 
             match level {
