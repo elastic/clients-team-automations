@@ -5,16 +5,31 @@ mod data;
 mod frontmatter;
 mod markdown;
 mod query;
+mod query_mode;
 mod report;
 mod schema;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process;
 
 #[derive(Parser, Debug)]
-#[command(name = "skill-validator", version, about = "Validate Agent Skills repositories")]
+#[command(
+    name = "skill-validator",
+    version,
+    about = "Validate Agent Skills repositories",
+    args_conflicts_with_subcommands = true
+)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    #[command(flatten)]
+    lint_args: LintArgs,
+}
+
+#[derive(clap::Args, Debug)]
+struct LintArgs {
     /// Path to the skills directory (overrides config, default: ./skills)
     #[arg(value_name = "SKILLS_DIR")]
     skills_dir: Option<PathBuf>,
@@ -60,19 +75,83 @@ struct Cli {
     verbose: bool,
 }
 
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Run an ad-hoc Trustfall query against the skills repository
+    Query(QueryArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct QueryArgs {
+    /// Trustfall query string (reads from stdin if omitted)
+    #[arg(short, long)]
+    query: Option<String>,
+
+    /// Query arguments as JSON object
+    #[arg(short, long, default_value = "{}")]
+    args: String,
+
+    /// Output format: table, json, csv
+    #[arg(short, long, default_value = "table")]
+    format: query_mode::QueryFormat,
+
+    /// Print the full GraphQL schema and exit
+    #[arg(long)]
+    schema: bool,
+
+    /// Path to the skills directory (overrides config, default: ./skills)
+    #[arg(value_name = "SKILLS_DIR")]
+    skills_dir: Option<PathBuf>,
+
+    /// Path to .skill-validator.toml
+    #[arg(short, long, default_value = ".skill-validator.toml")]
+    config: PathBuf,
+}
+
 fn main() {
     let cli = Cli::parse();
 
+    match cli.command {
+        Some(Commands::Query(args)) => run_query_command(args),
+        None => run_lint_command(cli.lint_args),
+    }
+}
+
+fn run_query_command(args: QueryArgs) {
+    if args.schema {
+        println!("{}", schema::SCHEMA_TEXT);
+        return;
+    }
+
+    let cfg = config::Config::load(&args.config);
+    let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
+
+    match query_mode::run_query(
+        args.query.as_deref(),
+        &args.args,
+        &args.format,
+        &skills_dir,
+        &cfg,
+    ) {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("Error: {e}");
+            process::exit(2);
+        }
+    }
+}
+
+fn run_lint_command(args: LintArgs) {
     let auto_format = std::env::var("GITHUB_ACTIONS").is_ok();
-    let format = if auto_format && cli.format == report::OutputFormat::Human {
+    let format = if auto_format && args.format == report::OutputFormat::Human {
         report::OutputFormat::GithubActions
     } else {
-        cli.format.clone()
+        args.format.clone()
     };
 
     let all_lints = query::load_builtin_lints();
 
-    if cli.list_lints {
+    if args.list_lints {
         for lint in &all_lints {
             println!(
                 "{:<45} [{}] {}",
@@ -88,7 +167,7 @@ fn main() {
         return;
     }
 
-    if let Some(id) = &cli.explain {
+    if let Some(id) = &args.explain {
         match all_lints.iter().find(|l| &l.id == id) {
             Some(lint) => {
                 println!("{}", lint.human_readable_name);
@@ -109,14 +188,13 @@ fn main() {
         return;
     }
 
-    let cfg = config::Config::load(&cli.config);
-
-    let skills_dir = cli.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
+    let cfg = config::Config::load(&args.config);
+    let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
 
     let overrides = query::LintLevelOverrides {
-        deny: cli.deny.into_iter().collect(),
-        warn: cli.warn.into_iter().collect(),
-        allow: cli.allow.into_iter().collect(),
+        deny: args.deny.into_iter().collect(),
+        warn: args.warn.into_iter().collect(),
+        allow: args.allow.into_iter().collect(),
     };
 
     match check::run_all_lints(
@@ -124,11 +202,11 @@ fn main() {
         &cfg,
         &all_lints,
         &overrides,
-        &cli.lints,
-        cli.quiet,
+        &args.lints,
+        args.quiet,
     ) {
         Ok(lint_report) => {
-            report::print_report(&lint_report, &format, cli.verbose);
+            report::print_report(&lint_report, &format, args.verbose);
             if lint_report.has_errors() {
                 process::exit(1);
             }

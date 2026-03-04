@@ -5,5 +5,6 @@ pub mod data;
 pub mod frontmatter;
 pub mod markdown;
 pub mod query;
+pub mod query_mode;
 pub mod report;
 pub mod schema;
