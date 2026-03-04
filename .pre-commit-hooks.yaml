@@ -1,0 +1,7 @@
+- id: validate-skills
+  name: Validate Agent Skills
+  entry: skill-validator
+  language: system
+  files: ^skills/
+  pass_filenames: false
+  description: Validate skill folder structure, frontmatter, and content conventions.
