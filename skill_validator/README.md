@@ -304,3 +304,59 @@ data_extensions = ["txt", "md", "json", "yaml", "yml", "cfg", "ini", "toml", "en
 1. CLI flags (`--deny`, `--warn`, `--allow`, `--lint`)
 2. `.skill-validator.toml` `[lints]` table
 3. Built-in defaults from `.ron` files
+
+## Releasing
+
+Releases are driven by git tags. Pushing a tag matching `skill-validator-v*`
+triggers the CI workflow which runs tests, cross-compiles binaries for four
+targets, and uploads them to a GitHub Release.
+
+| Target | Runner |
+|--------|--------|
+| `x86_64-unknown-linux-gnu` | ubuntu-latest |
+| `aarch64-unknown-linux-gnu` | ubuntu-latest (via `cross`) |
+| `x86_64-apple-darwin` | macos-latest |
+| `aarch64-apple-darwin` | macos-latest |
+
+### Step-by-step
+
+1. Update the version in `Cargo.toml` and commit:
+
+   ```bash
+   # edit Cargo.toml: version = "0.2.0"
+   git add Cargo.toml Cargo.lock
+   git commit -m "Bump skill-validator to v0.2.0"
+   git push
+   ```
+
+2. Create and push the tag. The tag **must** use the
+   `skill-validator-v<VERSION>` format.
+
+### Using the `gh` CLI
+
+```bash
+VERSION=0.2.0
+
+git tag "skill-validator-v${VERSION}"
+git push origin "skill-validator-v${VERSION}"
+
+# The release is created automatically by CI once the tag is pushed.
+# To create it manually (e.g. with release notes):
+gh release create "skill-validator-v${VERSION}" \
+  --title "skill-validator v${VERSION}" \
+  --generate-notes
+```
+
+CI will attach the compiled binaries to the release automatically via
+`softprops/action-gh-release`.
+
+### Using the GitHub web UI
+
+1. Go to **Releases** > **Draft a new release**.
+2. Click **Choose a tag** and type `skill-validator-v0.2.0` (it will offer
+   to create the tag on publish).
+3. Set the title to `skill-validator v0.2.0`.
+4. Click **Generate release notes** for an automatic changelog, or write
+   your own.
+5. Click **Publish release**. This creates the tag, which triggers CI to
+   build and attach the binaries.
