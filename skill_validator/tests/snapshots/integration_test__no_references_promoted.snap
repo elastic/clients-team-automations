@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 245
+expression: snapshot_report(&report)
+---
+warning[skill_has_no_references]: skills/test/no-references/SKILL.md:1: skills/test/no-references/SKILL.md has no references/ directory
+
+Ran 1 lints: 0 errors, 1 warnings

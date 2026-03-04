@@ -86,6 +86,9 @@ pub fn load_builtin_lints() -> Vec<SkillLint> {
         include_lint!("skill_body_too_long.ron"),
         include_lint!("skill_missing_examples_section.ron"),
         include_lint!("skill_missing_guidelines_section.ron"),
+        // Allow-level (opt-in)
+        include_lint!("skill_has_no_scripts.ron"),
+        include_lint!("skill_has_no_references.ron"),
     ]
 }
 

@@ -4,4 +4,4 @@ assertion_line: 53
 expression: snapshot_report(&report)
 ---
 
-Ran 15 lints: 0 errors, 0 warnings
+Ran 17 lints: 0 errors, 0 warnings

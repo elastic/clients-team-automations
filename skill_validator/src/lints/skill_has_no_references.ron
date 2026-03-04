@@ -1,0 +1,32 @@
+SkillLint(
+    id: "skill_has_no_references",
+    human_readable_name: "skill has no references/ directory",
+    description: "The skill does not have a references/ subdirectory. This is an opt-in lint (Allow by default).",
+    lint_level: Allow,
+    reference_link: None,
+    query: r#"
+    {
+        Skill {
+            sub_dir @fold
+                    @transform(op: "count")
+                    @filter(op: "=", value: ["$zero"]) {
+                name @filter(op: "=", value: ["$references_dir_name"])
+            }
+
+            skill_file_path @output
+            folder_name @output
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "zero": 0,
+        "references_dir_name": "references",
+    },
+    error_message: "This skill does not have a references/ subdirectory.",
+    per_result_error_template: Some("{{skill_file_path}} has no references/ directory"),
+)

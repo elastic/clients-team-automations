@@ -176,3 +176,71 @@ fn detects_missing_guidelines_section() {
     assert!(report.findings.iter().any(|f| f.lint_id == "skill_missing_guidelines_section"));
     insta::assert_snapshot!("missing_guidelines", snapshot_report(&report));
 }
+
+// ---- Allow-level lints (opt-in) ----
+
+#[test]
+fn allow_level_no_scripts_silent_by_default() {
+    let report = run_lints_on("no_scripts", &["skill_has_no_scripts"]);
+    assert_eq!(report.errors, 0, "Allow-level lint should not produce errors by default");
+    assert_eq!(report.warnings, 0, "Allow-level lint should not produce warnings by default");
+    assert!(report.findings.is_empty(), "Allow-level lint should produce no findings");
+}
+
+#[test]
+fn allow_level_no_scripts_fires_when_promoted() {
+    let root = fixture_path("no_scripts");
+    let skills_dir = root.join("skills");
+    let config = Config::default();
+    let all_lints = query::load_builtin_lints();
+    let overrides = query::LintLevelOverrides {
+        warn: ["skill_has_no_scripts".to_string()].into_iter().collect(),
+        ..query::LintLevelOverrides::default()
+    };
+    let report = check::run_all_lints_with_root(
+        &skills_dir,
+        &root,
+        &config,
+        &all_lints,
+        &overrides,
+        &[String::from("skill_has_no_scripts")],
+        false,
+    )
+    .expect("should not return an error");
+    assert!(report.warnings > 0, "no_scripts should warn when promoted via --warn");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_has_no_scripts"));
+    insta::assert_snapshot!("no_scripts_promoted", snapshot_report(&report));
+}
+
+#[test]
+fn allow_level_no_references_silent_by_default() {
+    let report = run_lints_on("no_references", &["skill_has_no_references"]);
+    assert_eq!(report.errors, 0, "Allow-level lint should not produce errors by default");
+    assert_eq!(report.warnings, 0, "Allow-level lint should not produce warnings by default");
+    assert!(report.findings.is_empty(), "Allow-level lint should produce no findings");
+}
+
+#[test]
+fn allow_level_no_references_fires_when_promoted() {
+    let root = fixture_path("no_references");
+    let skills_dir = root.join("skills");
+    let config = Config::default();
+    let all_lints = query::load_builtin_lints();
+    let overrides = query::LintLevelOverrides {
+        warn: ["skill_has_no_references".to_string()].into_iter().collect(),
+        ..query::LintLevelOverrides::default()
+    };
+    let report = check::run_all_lints_with_root(
+        &skills_dir,
+        &root,
+        &config,
+        &all_lints,
+        &overrides,
+        &[String::from("skill_has_no_references")],
+        false,
+    )
+    .expect("should not return an error");
+    assert!(report.warnings > 0, "no_references should warn when promoted via --warn");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_has_no_references"));
+    insta::assert_snapshot!("no_references_promoted", snapshot_report(&report));
+}
