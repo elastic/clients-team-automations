@@ -102,6 +102,18 @@ struct LintArgs {
     #[arg(long)]
     base: Option<String>,
 
+    /// Write JSON report to file (used by the GitHub Action for post-processing)
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
+
+    /// Write GitHub Job Summary markdown to file (append to $GITHUB_STEP_SUMMARY)
+    #[arg(long, value_name = "PATH")]
+    summary: Option<PathBuf>,
+
+    /// Write PR comment markdown to file (includes marker for upsert)
+    #[arg(long, value_name = "PATH")]
+    comment: Option<PathBuf>,
+
     /// Automatically fix auto-fixable issues
     #[arg(long)]
     fix: bool,
@@ -283,6 +295,27 @@ fn run_lint_command(args: LintArgs) {
                 eprintln!("No auto-fixable issues available. All lints are report-only.");
             }
             report::print_report(&lint_report, &format, args.verbose);
+
+            if let Some(ref path) = args.output {
+                if let Err(e) = report::write_json_file(&lint_report, path) {
+                    eprintln!("Warning: failed to write JSON report to {}: {e}", path.display());
+                }
+            }
+
+            if let Some(ref path) = args.summary {
+                let md = report::render_github_summary(&lint_report);
+                if let Err(e) = fs_err::write(path, &md) {
+                    eprintln!("Warning: failed to write summary to {}: {e}", path.display());
+                }
+            }
+
+            if let Some(ref path) = args.comment {
+                let md = report::render_github_comment(&lint_report);
+                if let Err(e) = fs_err::write(path, &md) {
+                    eprintln!("Warning: failed to write comment to {}: {e}", path.display());
+                }
+            }
+
             if lint_report.has_errors() {
                 process::exit(1);
             }

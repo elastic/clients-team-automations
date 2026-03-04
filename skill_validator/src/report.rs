@@ -1,6 +1,7 @@
 use crate::check::{LintFinding, LintReport};
 use crate::query::LintLevel;
 use std::fmt;
+use std::path::Path;
 
 use miette::{LabeledSpan, NamedSource, SourceSpan};
 
@@ -273,27 +274,29 @@ fn render_finding_plain(finding: &LintFinding, verbose: bool) -> String {
     out
 }
 
-fn print_json(report: &LintReport) {
-    #[derive(serde::Serialize)]
-    struct JsonReport {
-        lints_run: usize,
-        errors: usize,
-        warnings: usize,
-        findings: Vec<JsonFinding>,
-    }
+#[derive(serde::Serialize)]
+struct JsonReport {
+    lints_run: usize,
+    skills_checked: usize,
+    errors: usize,
+    warnings: usize,
+    findings: Vec<JsonFinding>,
+}
 
-    #[derive(serde::Serialize)]
-    struct JsonFinding {
-        lint_id: String,
-        level: String,
-        message: String,
-        detail: Option<String>,
-        filename: Option<String>,
-        line: Option<i64>,
-    }
+#[derive(serde::Serialize)]
+struct JsonFinding {
+    lint_id: String,
+    level: String,
+    message: String,
+    detail: Option<String>,
+    filename: Option<String>,
+    line: Option<i64>,
+}
 
+fn render_json(report: &LintReport) -> String {
     let json_report = JsonReport {
         lints_run: report.lints_run,
+        skills_checked: report.skills_checked,
         errors: report.errors,
         warnings: report.warnings,
         findings: report
@@ -314,10 +317,11 @@ fn print_json(report: &LintReport) {
             .collect(),
     };
 
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json_report).expect("failed to serialize report")
-    );
+    serde_json::to_string_pretty(&json_report).expect("failed to serialize report")
+}
+
+fn print_json(report: &LintReport) {
+    println!("{}", render_json(report));
 }
 
 fn print_github_actions(report: &LintReport) {
@@ -342,4 +346,119 @@ fn print_github_actions(report: &LintReport) {
             }
         }
     }
+}
+
+pub fn write_json_file(report: &LintReport, path: &Path) -> Result<(), String> {
+    let json = render_json(report);
+    fs_err::write(path, json).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// GitHub Summary & PR comment
+// ---------------------------------------------------------------------------
+
+const COMMENT_MARKER: &str = "<!-- skill-validator-bot -->";
+
+fn render_findings_table(findings: &[&LintFinding]) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+
+    writeln!(out, "| Lint | File | Line | Detail |").unwrap();
+    writeln!(out, "|------|------|------|--------|").unwrap();
+
+    for f in findings {
+        let detail = f
+            .detail
+            .as_deref()
+            .unwrap_or(&f.message);
+        let file = f
+            .filename
+            .as_deref()
+            .unwrap_or("-");
+        let line = f
+            .line
+            .map(|l| l.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        writeln!(out, "| `{lint}` | `{file}` | {line} | {detail} |",
+            lint = f.lint_id,
+        ).unwrap();
+    }
+
+    out
+}
+
+fn render_summary_body(report: &LintReport) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+
+    let status = if report.errors > 0 {
+        "Failed"
+    } else if report.warnings > 0 {
+        "Passed with warnings"
+    } else {
+        "Passed"
+    };
+
+    let icon = if report.errors > 0 {
+        "x"
+    } else if report.warnings > 0 {
+        "warning"
+    } else {
+        "heavy_check_mark"
+    };
+
+    writeln!(out, "## :{icon}: Skill Validator — {status}\n").unwrap();
+    writeln!(
+        out,
+        "**{lints}** lints ran against **{skills}** skills — **{errors}** error(s), **{warnings}** warning(s)\n",
+        lints = report.lints_run,
+        skills = report.skills_checked,
+        errors = report.errors,
+        warnings = report.warnings,
+    ).unwrap();
+
+    let errors: Vec<&LintFinding> = report
+        .findings
+        .iter()
+        .filter(|f| f.level == LintLevel::Deny)
+        .collect();
+
+    let warnings: Vec<&LintFinding> = report
+        .findings
+        .iter()
+        .filter(|f| f.level == LintLevel::Warn)
+        .collect();
+
+    if !errors.is_empty() {
+        writeln!(out, "### Errors\n").unwrap();
+        out.push_str(&render_findings_table(&errors));
+        out.push('\n');
+    }
+
+    if !warnings.is_empty() {
+        writeln!(out, "<details>\n<summary>Warnings ({count})</summary>\n",
+            count = warnings.len(),
+        ).unwrap();
+        out.push_str(&render_findings_table(&warnings));
+        writeln!(out, "\n</details>\n").unwrap();
+    }
+
+    if errors.is_empty() && warnings.is_empty() {
+        writeln!(out, "All checks passed.\n").unwrap();
+    }
+
+    out
+}
+
+pub fn render_github_summary(report: &LintReport) -> String {
+    let mut out = render_summary_body(report);
+    out.push_str("---\n");
+    out.push_str(&format!("*skill-validator v{}*\n", env!("CARGO_PKG_VERSION")));
+    out
+}
+
+pub fn render_github_comment(report: &LintReport) -> String {
+    let mut out = format!("{COMMENT_MARKER}\n");
+    out.push_str(&render_summary_body(report));
+    out
 }

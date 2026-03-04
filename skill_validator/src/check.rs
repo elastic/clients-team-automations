@@ -25,6 +25,7 @@ pub struct LintFinding {
 pub struct LintReport {
     pub findings: Vec<LintFinding>,
     pub lints_run: usize,
+    pub skills_checked: usize,
     pub errors: usize,
     pub warnings: usize,
 }
@@ -61,6 +62,7 @@ pub fn run_all_lints_with_root(
 ) -> Result<LintReport, String> {
 
     let skills_data = data::load_skills_data(skills_dir, repo_root, config, scope_filter);
+    let skills_checked = skills_data.skills.len();
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 
@@ -156,6 +158,7 @@ pub fn run_all_lints_with_root(
     Ok(LintReport {
         findings,
         lints_run,
+        skills_checked,
         errors,
         warnings,
     })

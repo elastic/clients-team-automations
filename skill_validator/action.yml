@@ -26,6 +26,18 @@ inputs:
     description: 'Additional CLI arguments'
     required: false
     default: ''
+  github-token:
+    description: 'GitHub token for posting PR comments (requires pull-requests: write)'
+    required: false
+    default: ''
+  post-comment:
+    description: 'Whether to post a validation summary comment on the PR'
+    required: false
+    default: 'false'
+  add-summary:
+    description: 'Whether to write a Job Summary'
+    required: false
+    default: 'true'
 
 outputs:
   exit-code:
@@ -76,12 +88,63 @@ runs:
         if [ -n "${{ inputs.base }}" ]; then
           SCOPE_ARGS="${SCOPE_ARGS} --base ${{ inputs.base }}"
         fi
+
+        OUTPUT_ARGS=""
+        if [ "${{ inputs.add-summary }}" = "true" ]; then
+          OUTPUT_ARGS="${OUTPUT_ARGS} --summary ${RUNNER_TEMP}/skill-validator-summary.md"
+        fi
+        if [ "${{ inputs.post-comment }}" = "true" ]; then
+          OUTPUT_ARGS="${OUTPUT_ARGS} --comment ${RUNNER_TEMP}/skill-validator-comment.md"
+        fi
+
         EXIT_CODE=0
         skill-validator \
           --format github-actions \
           --config "${{ inputs.config }}" \
           ${SCOPE_ARGS} \
+          ${OUTPUT_ARGS} \
           ${{ inputs.extra-args }} \
           "${{ inputs.skills-dir }}" || EXIT_CODE=$?
         echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
         exit "$EXIT_CODE"
+
+    - name: 'Write Job Summary'
+      if: always() && inputs.add-summary == 'true'
+      shell: 'bash'
+      run: |
+        SUMMARY_FILE="${RUNNER_TEMP}/skill-validator-summary.md"
+        if [ -f "$SUMMARY_FILE" ]; then
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: 'Post PR comment'
+      if: always() && inputs.post-comment == 'true' && github.event_name == 'pull_request'
+      shell: 'bash'
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        COMMENT_FILE="${RUNNER_TEMP}/skill-validator-comment.md"
+        if [ ! -f "$COMMENT_FILE" ]; then
+          echo "No comment file found, skipping"
+          exit 0
+        fi
+
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        if [ -z "$PR_NUMBER" ]; then
+          echo "No PR number found, skipping"
+          exit 0
+        fi
+
+        MARKER="<!-- skill-validator-bot -->"
+        COMMENT_BODY="$(cat "$COMMENT_FILE")"
+
+        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || echo "")
+
+        if [ -n "$COMMENT_ID" ]; then
+          gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            -X PATCH -f body="$COMMENT_BODY"
+        else
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            -f body="$COMMENT_BODY"
+        fi
