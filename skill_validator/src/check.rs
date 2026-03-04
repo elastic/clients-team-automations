@@ -155,6 +155,13 @@ pub fn run_all_lints_with_root(
         }
     }
 
+    findings.sort_by(|a, b| {
+        a.lint_id
+            .cmp(&b.lint_id)
+            .then_with(|| a.filename.cmp(&b.filename))
+            .then_with(|| a.line.cmp(&b.line))
+    });
+
     Ok(LintReport {
         findings,
         lints_run,
