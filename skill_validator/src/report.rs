@@ -163,6 +163,8 @@ fn print_human_rich(report: &LintReport, verbose: bool) {
     );
 }
 
+const MAX_SNIPPET_LINES: usize = 8;
+
 fn try_render_rich(
     finding: &LintFinding,
     verbose: bool,
@@ -174,16 +176,33 @@ fn try_render_rich(
     let source = std::fs::read_to_string(filename).ok()?;
 
     let (byte_start, line_len) = byte_offset_for_line(&source, line)?;
-    let span_len = if let Some(end) = finding.end_line {
+    let original_end_line = finding.end_line.map(|e| e as usize).unwrap_or(line);
+    let total_span_lines = if original_end_line > line {
+        original_end_line - line + 1
+    } else {
+        1
+    };
+
+    let (span_len, truncated) = if total_span_lines > MAX_SNIPPET_LINES {
+        let capped_end = line + MAX_SNIPPET_LINES - 1;
+        let (end_offset, end_len) = byte_offset_for_line(&source, capped_end)?;
+        ((end_offset + end_len) - byte_start, true)
+    } else if let Some(end) = finding.end_line {
         let end = end as usize;
         if end > line {
             let (end_offset, end_len) = byte_offset_for_line(&source, end)?;
-            (end_offset + end_len) - byte_start
+            ((end_offset + end_len) - byte_start, false)
         } else {
-            line_len
+            (line_len, false)
         }
     } else {
-        line_len
+        (line_len, false)
+    };
+
+    let label = if truncated {
+        format!("{} ({} lines total)", finding.lint_id, total_span_lines)
+    } else {
+        finding.lint_id.clone()
     };
 
     let severity = match finding.level {
@@ -207,7 +226,7 @@ fn try_render_rich(
         detail,
         src: NamedSource::new(filename, source),
         span: SourceSpan::new(byte_start.into(), span_len),
-        label: finding.lint_id.clone(),
+        label,
         severity,
         code: finding.lint_id.clone(),
         help,
