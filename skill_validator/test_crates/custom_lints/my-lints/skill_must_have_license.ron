@@ -1,0 +1,27 @@
+SkillLint(
+    id: "skill_must_have_license",
+    human_readable_name: "skill must have a license field",
+    description: "Custom lint: every skill must declare a license in frontmatter.",
+    lint_level: Warn,
+    reference_link: None,
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            license @filter(op: "is_null")
+
+            skill_file_path @output
+
+            span_: frontmatter_span @optional {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+    },
+    error_message: "Every skill should declare a license in frontmatter.",
+    per_result_error_template: Some("{{skill_file_path}} is missing a license field"),
+)

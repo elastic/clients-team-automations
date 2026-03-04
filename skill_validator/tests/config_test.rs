@@ -170,6 +170,60 @@ fn custom_data_extensions_changes_classification() {
 }
 
 #[test]
+fn custom_lint_dirs_loads_and_runs_custom_lints() {
+    let root = fixture_path("custom_lints");
+    let skills_dir = root.join("skills");
+    let config = Config {
+        custom_lint_dirs: vec![root.join("my-lints")],
+        ..Config::default()
+    };
+    let all_lints = query::load_builtin_lints();
+    let overrides = LintLevelOverrides::default();
+
+    let report = check::run_all_lints_with_root(
+        &skills_dir,
+        &root,
+        &config,
+        &all_lints,
+        &overrides,
+        &[String::from("skill_must_have_license")],
+        false,
+    )
+    .expect("should not return an error");
+
+    assert_eq!(report.findings.len(), 0,
+        "skill has a license, so the custom lint should not fire");
+}
+
+#[test]
+fn custom_lint_dirs_fires_on_missing_license() {
+    let root = fixture_path("missing_name");
+    let skills_dir = root.join("skills");
+    let custom_lint_dir = fixture_path("custom_lints").join("my-lints");
+    let config = Config {
+        custom_lint_dirs: vec![custom_lint_dir],
+        ..Config::default()
+    };
+    let all_lints = query::load_builtin_lints();
+    let overrides = LintLevelOverrides::default();
+
+    let report = check::run_all_lints_with_root(
+        &skills_dir,
+        &root,
+        &config,
+        &all_lints,
+        &overrides,
+        &[String::from("skill_must_have_license")],
+        false,
+    )
+    .expect("should not return an error");
+
+    assert!(report.warnings > 0,
+        "missing_name fixture has no license, custom lint should fire");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_must_have_license"));
+}
+
+#[test]
 fn missing_config_file_uses_defaults() {
     let config = Config::load(std::path::Path::new("nonexistent.toml"));
     assert_eq!(config.skills_dir, PathBuf::from("skills"));
