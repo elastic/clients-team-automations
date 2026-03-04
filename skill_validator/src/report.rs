@@ -45,7 +45,8 @@ pub fn print_report(report: &LintReport, format: &OutputFormat, verbose: bool) {
     }
 }
 
-/// Plain-text rendering (used by snapshot tests via lib.rs and as fallback).
+/// Plain-text rendering used by integration/snapshot tests via the lib crate.
+/// Dead from the binary's perspective since main.rs re-declares modules privately.
 #[allow(dead_code)]
 pub fn render_human(report: &LintReport, verbose: bool) -> String {
     use std::fmt::Write;

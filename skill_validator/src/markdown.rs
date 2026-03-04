@@ -52,10 +52,8 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
             if line.starts_with("```") || line.starts_with("~~~") {
                 pending_code_blocks.push(CodeBlockData {
                     language: code_block_lang.take(),
-                    has_language_tag: pending_code_blocks.last().map_or(
-                        code_block_lang.is_some(),
-                        |_| code_block_lang.is_some(),
-                    ),
+                    // Corrected by the fixup loop after parsing completes
+                    has_language_tag: false,
                     line_number: code_block_start_line,
                     content: code_block_content.clone(),
                 });
@@ -84,7 +82,6 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
             code_block_start_line = abs_line;
             code_block_content.clear();
 
-            // Fix: set has_language_tag on the code block being built
             section_content_lines.push(line.to_string());
             i += 1;
             continue;

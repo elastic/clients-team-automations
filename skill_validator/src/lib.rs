@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod check;
 pub mod config;
+pub mod convert;
 pub mod data;
 pub mod frontmatter;
 pub mod git;

@@ -1,6 +1,7 @@
 mod adapter;
 mod check;
 mod config;
+mod convert;
 mod data;
 mod frontmatter;
 mod git;
@@ -114,7 +115,7 @@ struct LintArgs {
     #[arg(long, value_name = "PATH")]
     comment: Option<PathBuf>,
 
-    /// Automatically fix auto-fixable issues
+    /// Automatically fix auto-fixable issues (reserved for future use)
     #[arg(long)]
     fix: bool,
 
@@ -284,14 +285,18 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
         allow: args.allow.into_iter().collect(),
     };
 
+    let lint_opts = check::LintRunOptions {
+        filter_ids: &args.lints,
+        quiet: args.quiet,
+        scope_filter: scope_filter.as_ref(),
+    };
+
     match check::run_all_lints(
         &skills_dir,
         &cfg,
         &all_lints,
         &overrides,
-        &args.lints,
-        args.quiet,
-        scope_filter.as_ref(),
+        &lint_opts,
     ) {
         Ok(lint_report) => {
             if args.fix {

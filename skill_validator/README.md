@@ -44,6 +44,7 @@ By default, validates the `./skills` directory using built-in lints.
 | `--output <PATH>` | Write JSON report to file |
 | `--summary <PATH>` | Write Job Summary markdown to file |
 | `--comment <PATH>` | Write PR comment markdown to file (includes upsert marker) |
+| `--fix` | Reserved for future use — no auto-fixable lints yet |
 | `-q, --quiet` | Only show errors, suppress warnings |
 | `-v, --verbose` | Show detailed diagnostic info |
 

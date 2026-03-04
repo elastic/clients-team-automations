@@ -57,8 +57,10 @@ runs:
     - name: 'Determine download URL'
       id: url
       shell: 'bash'
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        VERSION="${{ inputs.version }}"
+        VERSION="${INPUT_VERSION}"
         if [ "$VERSION" = "latest" ]; then
           URL="https://github.com/elastic/clients-team-automations/releases/latest/download"
         else
@@ -90,28 +92,36 @@ runs:
     - name: 'Run validation'
       id: validate
       shell: 'bash'
+      env:
+        INPUT_SCOPE: ${{ inputs.scope }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_ADD_SUMMARY: ${{ inputs.add-summary }}
+        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
+        INPUT_SKILLS_DIR: ${{ inputs.skills-dir }}
       run: |
-        SCOPE_ARGS="--scope ${{ inputs.scope }}"
-        if [ -n "${{ inputs.base }}" ]; then
-          SCOPE_ARGS="${SCOPE_ARGS} --base ${{ inputs.base }}"
+        SCOPE_ARGS="--scope ${INPUT_SCOPE}"
+        if [ -n "${INPUT_BASE}" ]; then
+          SCOPE_ARGS="${SCOPE_ARGS} --base ${INPUT_BASE}"
         fi
 
         OUTPUT_ARGS=""
-        if [ "${{ inputs.add-summary }}" = "true" ]; then
+        if [ "${INPUT_ADD_SUMMARY}" = "true" ]; then
           OUTPUT_ARGS="${OUTPUT_ARGS} --summary ${RUNNER_TEMP}/skill-validator-summary.md"
         fi
-        if [ "${{ inputs.post-comment }}" = "true" ]; then
+        if [ "${INPUT_POST_COMMENT}" = "true" ]; then
           OUTPUT_ARGS="${OUTPUT_ARGS} --comment ${RUNNER_TEMP}/skill-validator-comment.md"
         fi
 
         EXIT_CODE=0
         skill-validator \
           --format github-actions \
-          --config "${{ inputs.config }}" \
+          --config "${INPUT_CONFIG}" \
           ${SCOPE_ARGS} \
           ${OUTPUT_ARGS} \
-          ${{ inputs.extra-args }} \
-          "${{ inputs.skills-dir }}" || EXIT_CODE=$?
+          ${INPUT_EXTRA_ARGS} \
+          "${INPUT_SKILLS_DIR}" || EXIT_CODE=$?
         echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
         exit "$EXIT_CODE"
 

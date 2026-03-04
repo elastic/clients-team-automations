@@ -28,9 +28,10 @@ fn run_lints_with_config(
         &config,
         &all_lints,
         &overrides,
-        &filter,
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("run_all_lints should not return an error")
 }
@@ -52,9 +53,10 @@ fn run_lints_with_overrides(
         &config,
         &all_lints,
         &overrides,
-        &filter,
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("run_all_lints should not return an error")
 }
@@ -178,15 +180,17 @@ fn custom_lint_dirs_loads_and_runs_custom_lints() {
     let all_lints = query::load_builtin_lints();
     let overrides = LintLevelOverrides::default();
 
+    let filter = vec![String::from("skill_must_have_license")];
     let report = check::run_all_lints_with_root(
         &skills_dir,
         &root,
         &config,
         &all_lints,
         &overrides,
-        &[String::from("skill_must_have_license")],
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("should not return an error");
 
@@ -206,15 +210,17 @@ fn custom_lint_dirs_fires_on_missing_license() {
     let all_lints = query::load_builtin_lints();
     let overrides = LintLevelOverrides::default();
 
+    let filter = vec![String::from("skill_must_have_license")];
     let report = check::run_all_lints_with_root(
         &skills_dir,
         &root,
         &config,
         &all_lints,
         &overrides,
-        &[String::from("skill_must_have_license")],
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("should not return an error");
 

@@ -160,9 +160,16 @@ pub fn load_skills_data(
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        let total_line_count = fs_err::read_to_string(abs_path)
-            .map(|c| c.lines().count() as i64)
-            .unwrap_or(0);
+        let in_scope = match scope_filter {
+            Some(filter) => filter.contains(&rel_skill_dir),
+            None => true,
+        };
+
+        let content = match fs_err::read_to_string(abs_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let total_line_count = content.lines().count() as i64;
 
         let span = Arc::new(SpanData {
             filename: rel_path.clone(),
@@ -170,16 +177,7 @@ pub fn load_skills_data(
             end_line: total_line_count,
         });
 
-        let in_scope = match scope_filter {
-            Some(filter) => filter.contains(&rel_skill_dir),
-            None => true,
-        };
-
         let skill_index = if is_valid_location && in_scope {
-            let content = match fs_err::read_to_string(abs_path) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
 
             let fm_result = frontmatter::parse_frontmatter(&content);
             let body = if fm_result.body_start_line > 1 {

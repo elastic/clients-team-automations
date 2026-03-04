@@ -2,10 +2,11 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
-use trustfall::{FieldValue, TransparentValue, execute_query};
+use trustfall::{FieldValue, execute_query};
 
 use crate::adapter::SkillsAdapter;
 use crate::config::Config;
+use crate::convert;
 use crate::data;
 use crate::query::{LintLevel, LintLevelOverrides, SkillLint};
 use crate::schema;
@@ -36,32 +37,34 @@ impl LintReport {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct LintRunOptions<'a> {
+    pub filter_ids: &'a [String],
+    pub quiet: bool,
+    pub scope_filter: Option<&'a HashSet<String>>,
+}
+
 pub fn run_all_lints(
     skills_dir: &Path,
     config: &Config,
     builtin_lints: &[SkillLint],
     overrides: &LintLevelOverrides,
-    filter_ids: &[String],
-    quiet: bool,
-    scope_filter: Option<&HashSet<String>>,
+    opts: &LintRunOptions<'_>,
 ) -> Result<LintReport, String> {
     let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
-    run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, filter_ids, quiet, scope_filter)
+    run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, opts)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn run_all_lints_with_root(
     skills_dir: &Path,
     repo_root: &Path,
     config: &Config,
     builtin_lints: &[SkillLint],
     overrides: &LintLevelOverrides,
-    filter_ids: &[String],
-    quiet: bool,
-    scope_filter: Option<&HashSet<String>>,
+    opts: &LintRunOptions<'_>,
 ) -> Result<LintReport, String> {
 
-    let skills_data = data::load_skills_data(skills_dir, repo_root, config, scope_filter);
+    let skills_data = data::load_skills_data(skills_dir, repo_root, config, opts.scope_filter);
     let skills_checked = skills_data.skills.len();
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
@@ -71,8 +74,8 @@ pub fn run_all_lints_with_root(
     all_lints.extend(custom_lints.iter());
 
     // Filter to requested lints if specified
-    if !filter_ids.is_empty() {
-        all_lints.retain(|l| filter_ids.contains(&l.id));
+    if !opts.filter_ids.is_empty() {
+        all_lints.retain(|l| opts.filter_ids.contains(&l.id));
     }
 
     let mut hbs = handlebars::Handlebars::new();
@@ -93,14 +96,14 @@ pub fn run_all_lints_with_root(
         if level == LintLevel::Allow {
             continue;
         }
-        if quiet && level == LintLevel::Warn {
+        if opts.quiet && level == LintLevel::Warn {
             continue;
         }
 
         let args: BTreeMap<String, FieldValue> = lint
             .arguments
             .iter()
-            .map(|(k, v)| (k.clone(), transparent_to_field(v)))
+            .map(|(k, v)| (k.clone(), convert::transparent_to_field(v)))
             .collect();
 
         let results = execute_query(&schema, Arc::new(adapter.clone()), &lint.query, args);
@@ -171,22 +174,6 @@ pub fn run_all_lints_with_root(
     })
 }
 
-fn transparent_to_field(tv: &TransparentValue) -> FieldValue {
-    match tv {
-        TransparentValue::String(s) => FieldValue::from(&**s),
-        TransparentValue::Float64(f) => FieldValue::Float64(*f),
-        TransparentValue::Int64(i) => FieldValue::Int64(*i),
-        TransparentValue::Uint64(u) => FieldValue::Uint64(*u),
-        TransparentValue::Boolean(b) => FieldValue::Boolean(*b),
-        TransparentValue::Null => FieldValue::Null,
-        TransparentValue::List(l) => {
-            let items: Vec<FieldValue> = l.iter().map(transparent_to_field).collect();
-            FieldValue::List(items.into())
-        }
-        _ => FieldValue::Null,
-    }
-}
-
 fn find_field_string(row: &BTreeMap<Arc<str>, FieldValue>, candidates: &[&str]) -> Option<String> {
     for key in candidates {
         let arc_key: Arc<str> = Arc::from(*key);
@@ -213,13 +200,13 @@ fn render_template(
     hbs: &handlebars::Handlebars<'_>,
     lint_id: &str,
     row: &BTreeMap<Arc<str>, FieldValue>,
-    arguments: &BTreeMap<String, TransparentValue>,
+    arguments: &BTreeMap<String, trustfall::TransparentValue>,
 ) -> String {
-    let mut context = row_to_json(row);
+    let mut context = convert::row_to_json(row);
     if let serde_json::Value::Object(ref mut map) = context {
         for (k, v) in arguments {
             map.entry(k.clone())
-                .or_insert_with(|| transparent_to_json(v));
+                .or_insert_with(|| convert::transparent_to_json(v));
         }
     }
     hbs.render(lint_id, &context).unwrap_or_else(|e| {
@@ -227,42 +214,3 @@ fn render_template(
     })
 }
 
-fn transparent_to_json(tv: &TransparentValue) -> serde_json::Value {
-    match tv {
-        TransparentValue::String(s) => serde_json::Value::String(s.to_string()),
-        TransparentValue::Float64(f) => serde_json::json!(f),
-        TransparentValue::Int64(i) => serde_json::json!(i),
-        TransparentValue::Uint64(u) => serde_json::json!(u),
-        TransparentValue::Boolean(b) => serde_json::Value::Bool(*b),
-        TransparentValue::Null => serde_json::Value::Null,
-        TransparentValue::List(l) => {
-            let items: Vec<serde_json::Value> = l.iter().map(transparent_to_json).collect();
-            serde_json::Value::Array(items)
-        }
-        _ => serde_json::Value::Null,
-    }
-}
-
-fn row_to_json(row: &BTreeMap<Arc<str>, FieldValue>) -> serde_json::Value {
-    let map: serde_json::Map<String, serde_json::Value> = row
-        .iter()
-        .map(|(k, v)| (k.to_string(), field_value_to_json(v)))
-        .collect();
-    serde_json::Value::Object(map)
-}
-
-fn field_value_to_json(v: &FieldValue) -> serde_json::Value {
-    match v {
-        FieldValue::String(s) => serde_json::Value::String(s.to_string()),
-        FieldValue::Int64(i) => serde_json::json!(i),
-        FieldValue::Uint64(u) => serde_json::json!(u),
-        FieldValue::Float64(f) => serde_json::json!(f),
-        FieldValue::Boolean(b) => serde_json::Value::Bool(*b),
-        FieldValue::Null => serde_json::Value::Null,
-        FieldValue::List(l) => {
-            let items: Vec<serde_json::Value> = l.iter().map(field_value_to_json).collect();
-            serde_json::Value::Array(items)
-        }
-        other => serde_json::json!(format!("{other:?}")),
-    }
-}

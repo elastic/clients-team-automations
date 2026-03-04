@@ -25,9 +25,10 @@ fn run_lints_on(fixture: &str, filter_lints: &[&str]) -> check::LintReport {
         &config,
         &all_lints,
         &overrides,
-        &filter,
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("run_all_lints should not return an error")
 }
@@ -206,15 +207,17 @@ fn allow_level_no_scripts_fires_when_promoted() {
         warn: ["skill_has_no_scripts".to_string()].into_iter().collect(),
         ..query::LintLevelOverrides::default()
     };
+    let filter = vec![String::from("skill_has_no_scripts")];
     let report = check::run_all_lints_with_root(
         &skills_dir,
         &root,
         &config,
         &all_lints,
         &overrides,
-        &[String::from("skill_has_no_scripts")],
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("should not return an error");
     assert!(report.warnings > 0, "no_scripts should warn when promoted via --warn");
@@ -240,15 +243,17 @@ fn allow_level_no_references_fires_when_promoted() {
         warn: ["skill_has_no_references".to_string()].into_iter().collect(),
         ..query::LintLevelOverrides::default()
     };
+    let filter = vec![String::from("skill_has_no_references")];
     let report = check::run_all_lints_with_root(
         &skills_dir,
         &root,
         &config,
         &all_lints,
         &overrides,
-        &[String::from("skill_has_no_references")],
-        false,
-        None,
+        &check::LintRunOptions {
+            filter_ids: &filter,
+            ..check::LintRunOptions::default()
+        },
     )
     .expect("should not return an error");
     assert!(report.warnings > 0, "no_references should warn when promoted via --warn");
