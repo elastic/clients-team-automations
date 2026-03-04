@@ -12,7 +12,7 @@ mod schema;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use std::process;
+use std::process::ExitCode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Scope {
@@ -160,7 +160,7 @@ struct QueryArgs {
     config: PathBuf,
 }
 
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
 
     match cli.command {
@@ -169,10 +169,10 @@ fn main() {
     }
 }
 
-fn run_query_command(args: QueryArgs) {
+fn run_query_command(args: QueryArgs) -> ExitCode {
     if args.schema {
         println!("{}", schema::SCHEMA_TEXT);
-        return;
+        return ExitCode::SUCCESS;
     }
 
     let cfg = config::Config::load(&args.config);
@@ -185,15 +185,15 @@ fn run_query_command(args: QueryArgs) {
         &skills_dir,
         &cfg,
     ) {
-        Ok(()) => {}
+        Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("Error: {e}");
-            process::exit(2);
+            ExitCode::from(2)
         }
     }
 }
 
-fn run_lint_command(args: LintArgs) {
+fn run_lint_command(args: LintArgs) -> ExitCode {
     let auto_format = std::env::var("GITHUB_ACTIONS").is_ok();
     let format = if auto_format && args.format == report::OutputFormat::Human {
         report::OutputFormat::GithubActions
@@ -216,7 +216,7 @@ fn run_lint_command(args: LintArgs) {
                 lint.human_readable_name,
             );
         }
-        return;
+        return ExitCode::SUCCESS;
     }
 
     if let Some(id) = &args.explain {
@@ -234,20 +234,23 @@ fn run_lint_command(args: LintArgs) {
             }
             None => {
                 eprintln!("Unknown lint: {id}");
-                process::exit(2);
+                return ExitCode::from(2);
             }
         }
-        return;
+        return ExitCode::SUCCESS;
     }
 
     let cfg = config::Config::load(&args.config);
     let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
 
     let scope_filter = if args.scope == Scope::Changed {
-        let repo_root = std::env::current_dir().unwrap_or_else(|e| {
-            eprintln!("Error: cannot get current directory: {e}");
-            process::exit(2);
-        });
+        let repo_root = match std::env::current_dir() {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Error: cannot get current directory: {e}");
+                return ExitCode::from(2);
+            }
+        };
         let base_ref = git::resolve_base_ref(args.base.as_deref());
         if args.verbose {
             eprintln!("Scope: changed (base ref: {base_ref})");
@@ -262,13 +265,13 @@ fn run_lint_command(args: LintArgs) {
                 }
                 if dirs.is_empty() {
                     eprintln!("No changed skills detected — nothing to validate.");
-                    return;
+                    return ExitCode::SUCCESS;
                 }
                 Some(dirs)
             }
             Err(e) => {
                 eprintln!("Error: {e}");
-                process::exit(2);
+                return ExitCode::from(2);
             }
         }
     } else {
@@ -317,12 +320,14 @@ fn run_lint_command(args: LintArgs) {
             }
 
             if lint_report.has_errors() {
-                process::exit(1);
+                ExitCode::from(1)
+            } else {
+                ExitCode::SUCCESS
             }
         }
         Err(e) => {
             eprintln!("Error: {e}");
-            process::exit(2);
+            ExitCode::from(2)
         }
     }
 }
