@@ -39,6 +39,8 @@ By default, validates the `./skills` directory using built-in lints.
 | `--allow <ID>` | Override lint level to Allow (repeatable) |
 | `--list-lints` | List all available lints and exit |
 | `--explain <ID>` | Show detailed explanation for a lint |
+| `--scope <SCOPE>` | Validation scope: `all` or `changed` (default: `all`) |
+| `--base <REF>` | Base git ref for changed-file detection (default: auto-detect) |
 | `-q, --quiet` | Only show errors, suppress warnings |
 | `-v, --verbose` | Show detailed diagnostic info |
 
@@ -61,6 +63,31 @@ skill-validator --lint skill_missing_name --lint skill_flat_layout
 # Promote a warning to an error
 skill-validator --deny skill_body_too_long
 ```
+
+### Validating only changed skills
+
+Use `--scope changed` to validate only skills whose files were modified
+compared to a base ref. This is useful in CI to avoid re-validating the
+entire repository on every PR.
+
+```bash
+# Validate only skills changed relative to main
+skill-validator --scope changed
+
+# Validate only skills changed relative to a specific branch
+skill-validator --scope changed --base origin/release-1.0
+```
+
+When `--scope changed` is used without `--base`, the base ref is
+auto-detected:
+
+1. If the `GITHUB_BASE_REF` environment variable is set (pull request
+   workflows), it uses `origin/$GITHUB_BASE_REF`.
+2. Otherwise, it defaults to `main`.
+
+A "changed skill" is any skill directory where at least one file
+(SKILL.md, scripts/, references/, etc.) was added, copied, modified, or
+renamed in the diff.
 
 ## Available lints
 
@@ -161,6 +188,24 @@ jobs:
           skills-dir: skills
 ```
 
+To validate only skills changed in a PR:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: elastic/clients-team-automations/skill_validator@main
+        with:
+          scope: changed
+```
+
+> **Note:** `fetch-depth: 0` (full history) is required when using
+> `scope: changed` so that `git diff` can compare against the base ref.
+
 ### Inputs
 
 | Input | Default | Description |
@@ -168,6 +213,8 @@ jobs:
 | `skills-dir` | `skills` | Path to the skills directory |
 | `config` | `.skill-validator.toml` | Path to config file |
 | `version` | `latest` | Release version to download (e.g. `v0.1.0`) |
+| `scope` | `all` | Validation scope: `all` or `changed` |
+| `base` | *(auto-detect)* | Base git ref for changed-file detection (only with `scope: changed`) |
 | `extra-args` | | Additional CLI arguments |
 
 ### Outputs

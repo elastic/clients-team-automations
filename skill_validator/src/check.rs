@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -42,11 +42,13 @@ pub fn run_all_lints(
     overrides: &LintLevelOverrides,
     filter_ids: &[String],
     quiet: bool,
+    scope_filter: Option<&HashSet<String>>,
 ) -> Result<LintReport, String> {
     let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
-    run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, filter_ids, quiet)
+    run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, filter_ids, quiet, scope_filter)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_all_lints_with_root(
     skills_dir: &Path,
     repo_root: &Path,
@@ -55,9 +57,10 @@ pub fn run_all_lints_with_root(
     overrides: &LintLevelOverrides,
     filter_ids: &[String],
     quiet: bool,
+    scope_filter: Option<&HashSet<String>>,
 ) -> Result<LintReport, String> {
 
-    let skills_data = data::load_skills_data(skills_dir, repo_root, config);
+    let skills_data = data::load_skills_data(skills_dir, repo_root, config, scope_filter);
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 

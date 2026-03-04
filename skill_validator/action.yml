@@ -14,6 +14,14 @@ inputs:
     description: 'skill-validator release version to download (e.g. "v0.1.0"). Defaults to latest.'
     required: false
     default: 'latest'
+  scope:
+    description: 'Validation scope: "all" validates every skill, "changed" validates only skills with files changed in the current PR/push'
+    required: false
+    default: 'all'
+  base:
+    description: 'Base git ref for changed-file detection (only used when scope is "changed"). Defaults to the PR base branch.'
+    required: false
+    default: ''
   extra-args:
     description: 'Additional CLI arguments'
     required: false
@@ -64,10 +72,15 @@ runs:
       id: validate
       shell: 'bash'
       run: |
+        SCOPE_ARGS="--scope ${{ inputs.scope }}"
+        if [ -n "${{ inputs.base }}" ]; then
+          SCOPE_ARGS="${SCOPE_ARGS} --base ${{ inputs.base }}"
+        fi
         EXIT_CODE=0
         skill-validator \
           --format github-actions \
           --config "${{ inputs.config }}" \
+          ${SCOPE_ARGS} \
           ${{ inputs.extra-args }} \
           "${{ inputs.skills-dir }}" || EXIT_CODE=$?
         echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"

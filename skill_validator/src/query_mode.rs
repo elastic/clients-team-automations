@@ -48,7 +48,7 @@ pub fn run_query(
         .collect();
 
     let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
-    let skills_data = data::load_skills_data(skills_dir, &repo_root, config);
+    let skills_data = data::load_skills_data(skills_dir, &repo_root, config, None);
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 

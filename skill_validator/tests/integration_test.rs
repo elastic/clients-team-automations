@@ -27,6 +27,7 @@ fn run_lints_on(fixture: &str, filter_lints: &[&str]) -> check::LintReport {
         &overrides,
         &filter,
         false,
+        None,
     )
     .expect("run_all_lints should not return an error")
 }
@@ -205,6 +206,7 @@ fn allow_level_no_scripts_fires_when_promoted() {
         &overrides,
         &[String::from("skill_has_no_scripts")],
         false,
+        None,
     )
     .expect("should not return an error");
     assert!(report.warnings > 0, "no_scripts should warn when promoted via --warn");
@@ -238,6 +240,7 @@ fn allow_level_no_references_fires_when_promoted() {
         &overrides,
         &[String::from("skill_has_no_references")],
         false,
+        None,
     )
     .expect("should not return an error");
     assert!(report.warnings > 0, "no_references should warn when promoted via --warn");

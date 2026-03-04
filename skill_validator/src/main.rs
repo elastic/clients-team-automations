@@ -3,6 +3,7 @@ mod check;
 mod config;
 mod data;
 mod frontmatter;
+mod git;
 mod markdown;
 mod query;
 mod query_mode;
@@ -12,6 +13,33 @@ mod schema;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Scope {
+    All,
+    Changed,
+}
+
+impl std::fmt::Display for Scope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scope::All => write!(f, "all"),
+            Scope::Changed => write!(f, "changed"),
+        }
+    }
+}
+
+impl std::str::FromStr for Scope {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Scope::All),
+            "changed" => Ok(Scope::Changed),
+            _ => Err(format!("unknown scope '{s}', expected: all, changed")),
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -65,6 +93,14 @@ struct LintArgs {
     /// Show detailed explanation for a lint
     #[arg(long, value_name = "ID")]
     explain: Option<String>,
+
+    /// Validation scope: all or changed (default: all)
+    #[arg(long, default_value = "all")]
+    scope: Scope,
+
+    /// Base git ref for changed-file detection (default: auto-detect)
+    #[arg(long)]
+    base: Option<String>,
 
     /// Automatically fix auto-fixable issues
     #[arg(long)]
@@ -195,6 +231,38 @@ fn run_lint_command(args: LintArgs) {
     let cfg = config::Config::load(&args.config);
     let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
 
+    let scope_filter = if args.scope == Scope::Changed {
+        let repo_root = std::env::current_dir().unwrap_or_else(|e| {
+            eprintln!("Error: cannot get current directory: {e}");
+            process::exit(2);
+        });
+        let base_ref = git::resolve_base_ref(args.base.as_deref());
+        if args.verbose {
+            eprintln!("Scope: changed (base ref: {base_ref})");
+        }
+        match git::changed_skill_dirs(&base_ref, &skills_dir, &repo_root) {
+            Ok(dirs) => {
+                if args.verbose {
+                    eprintln!("Changed skill directories: {}", dirs.len());
+                    for d in &dirs {
+                        eprintln!("  {d}");
+                    }
+                }
+                if dirs.is_empty() {
+                    eprintln!("No changed skills detected — nothing to validate.");
+                    return;
+                }
+                Some(dirs)
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                process::exit(2);
+            }
+        }
+    } else {
+        None
+    };
+
     let overrides = query::LintLevelOverrides {
         deny: args.deny.into_iter().collect(),
         warn: args.warn.into_iter().collect(),
@@ -208,6 +276,7 @@ fn run_lint_command(args: LintArgs) {
         &overrides,
         &args.lints,
         args.quiet,
+        scope_filter.as_ref(),
     ) {
         Ok(lint_report) => {
             if args.fix {

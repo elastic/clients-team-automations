@@ -30,6 +30,7 @@ fn run_lints_with_config(
         &overrides,
         &filter,
         false,
+        None,
     )
     .expect("run_all_lints should not return an error")
 }
@@ -53,6 +54,7 @@ fn run_lints_with_overrides(
         &overrides,
         &filter,
         false,
+        None,
     )
     .expect("run_all_lints should not return an error")
 }
@@ -188,6 +190,7 @@ fn custom_lint_dirs_loads_and_runs_custom_lints() {
         &overrides,
         &[String::from("skill_must_have_license")],
         false,
+        None,
     )
     .expect("should not return an error");
 
@@ -215,6 +218,7 @@ fn custom_lint_dirs_fires_on_missing_license() {
         &overrides,
         &[String::from("skill_must_have_license")],
         false,
+        None,
     )
     .expect("should not return an error");
 

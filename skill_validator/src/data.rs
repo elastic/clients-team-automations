@@ -102,7 +102,12 @@ pub struct SkillsData {
 // Directory walking & data loading
 // ---------------------------------------------------------------------------
 
-pub fn load_skills_data(skills_dir: &Path, repo_root: &Path, config: &Config) -> SkillsData {
+pub fn load_skills_data(
+    skills_dir: &Path,
+    repo_root: &Path,
+    config: &Config,
+    scope_filter: Option<&std::collections::HashSet<String>>,
+) -> SkillsData {
     let mut discovered_files: Vec<Arc<DiscoveredSkillFileData>> = Vec::new();
     let mut skills: Vec<Arc<SkillData>> = Vec::new();
     let mut group_map: BTreeMap<String, Vec<usize>> = BTreeMap::new();
@@ -169,7 +174,12 @@ pub fn load_skills_data(skills_dir: &Path, repo_root: &Path, config: &Config) ->
             end_line: total_line_count,
         });
 
-        let skill_index = if is_valid_location {
+        let in_scope = match scope_filter {
+            Some(filter) => filter.contains(&rel_skill_dir),
+            None => true,
+        };
+
+        let skill_index = if is_valid_location && in_scope {
             let content = match fs_err::read_to_string(abs_path) {
                 Ok(c) => c,
                 Err(_) => continue,
@@ -279,14 +289,16 @@ pub fn load_skills_data(skills_dir: &Path, repo_root: &Path, config: &Config) ->
             None
         };
 
-        discovered_files.push(Arc::new(DiscoveredSkillFileData {
-            path: rel_path,
-            parent_dir,
-            depth,
-            is_valid_location,
-            skill_index,
-            span,
-        }));
+        if in_scope {
+            discovered_files.push(Arc::new(DiscoveredSkillFileData {
+                path: rel_path,
+                parent_dir,
+                depth,
+                is_valid_location,
+                skill_index,
+                span,
+            }));
+        }
     }
 
     let group_folders: Vec<Arc<GroupFolderData>> = group_map
