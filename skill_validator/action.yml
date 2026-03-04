@@ -62,7 +62,13 @@ runs:
       run: |
         VERSION="${INPUT_VERSION}"
         if [ "$VERSION" = "latest" ]; then
-          URL="https://github.com/elastic/clients-team-automations/releases/latest/download"
+          TAG=$(gh api repos/elastic/clients-team-automations/releases \
+            --jq '[.[] | select(.tag_name | startswith("skill-validator-v"))][0].tag_name' \
+          ) || { echo "::error::Failed to resolve latest skill-validator release"; exit 1; }
+          if [ -z "$TAG" ]; then
+            echo "::error::No skill-validator release found"; exit 1
+          fi
+          URL="https://github.com/elastic/clients-team-automations/releases/download/${TAG}"
         else
           URL="https://github.com/elastic/clients-team-automations/releases/download/skill-validator-${VERSION}"
         fi

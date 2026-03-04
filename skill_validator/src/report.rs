@@ -240,11 +240,13 @@ fn try_render_rich(
 
 fn byte_offset_for_line(source: &str, line_number: usize) -> Option<(usize, usize)> {
     let mut offset = 0;
-    for (i, line) in source.lines().enumerate() {
+    // Use split('\n') instead of lines() to correctly account for \r\n line endings
+    for (i, raw_line) in source.split('\n').enumerate() {
+        let visible = raw_line.strip_suffix('\r').unwrap_or(raw_line);
         if i + 1 == line_number {
-            return Some((offset, line.len().max(1)));
+            return Some((offset, visible.len().max(1)));
         }
-        offset += line.len() + 1;
+        offset += raw_line.len() + 1;
     }
     None
 }
@@ -344,6 +346,12 @@ fn print_json(report: &LintReport) {
     println!("{}", render_json(report));
 }
 
+fn escape_workflow_command(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+}
+
 fn print_github_actions(report: &LintReport) {
     for finding in &report.findings {
         let cmd = match finding.level {
@@ -352,13 +360,17 @@ fn print_github_actions(report: &LintReport) {
             LintLevel::Allow => continue,
         };
 
-        let msg = finding.detail.as_deref().unwrap_or(&finding.message);
+        let msg = escape_workflow_command(
+            finding.detail.as_deref().unwrap_or(&finding.message),
+        );
 
         match (&finding.filename, finding.line) {
             (Some(file), Some(line)) => {
+                let file = escape_workflow_command(file);
                 println!("::{cmd} file={file},line={line}::[{}] {msg}", finding.lint_id);
             }
             (Some(file), None) => {
+                let file = escape_workflow_command(file);
                 println!("::{cmd} file={file}::[{}] {msg}", finding.lint_id);
             }
             _ => {
@@ -379,6 +391,12 @@ pub fn write_json_file(report: &LintReport, path: &Path) -> Result<(), String> {
 
 const COMMENT_MARKER: &str = "<!-- skill-validator-bot -->";
 
+fn escape_md_table_cell(s: &str) -> String {
+    s.replace('|', "\\|")
+        .replace('\r', " ")
+        .replace('\n', " ")
+}
+
 fn render_findings_table(findings: &[&LintFinding]) -> String {
     use std::fmt::Write;
     let mut out = String::new();
@@ -387,14 +405,12 @@ fn render_findings_table(findings: &[&LintFinding]) -> String {
     writeln!(out, "|------|------|------|--------|").unwrap();
 
     for f in findings {
-        let detail = f
-            .detail
-            .as_deref()
-            .unwrap_or(&f.message);
-        let file = f
-            .filename
-            .as_deref()
-            .unwrap_or("-");
+        let detail = escape_md_table_cell(
+            f.detail.as_deref().unwrap_or(&f.message),
+        );
+        let file = escape_md_table_cell(
+            f.filename.as_deref().unwrap_or("-"),
+        );
         let line = f
             .line
             .map(|l| l.to_string())

@@ -47,7 +47,7 @@ type Skill {
     """Relative path from the repo root to the SKILL.md file."""
     skill_file_path: String!
 
-    """Nesting depth under the skills root (valid skills are depth >= 2)."""
+    """Nesting depth under the skills root (valid skills are at depth 3)."""
     depth: Int!
 
     # ---- Frontmatter properties ----

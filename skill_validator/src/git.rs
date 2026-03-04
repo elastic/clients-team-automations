@@ -4,7 +4,7 @@ use std::process::Command;
 
 /// Resolve the base ref for changed-file detection.
 ///
-/// Precedence: explicit `--base` flag > `GITHUB_BASE_REF` env var > `"main"`.
+/// Precedence: explicit `--base` flag > `GITHUB_BASE_REF` env var > `"origin/main"`.
 pub fn resolve_base_ref(explicit: Option<&str>) -> String {
     if let Some(base) = explicit {
         return base.to_string();
@@ -14,7 +14,7 @@ pub fn resolve_base_ref(explicit: Option<&str>) -> String {
             return format!("origin/{gh_base}");
         }
     }
-    "main".to_string()
+    "origin/main".to_string()
 }
 
 /// Return the set of skill directory paths (relative to `repo_root`) that have
