@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths: ['skill_validator/**']
+    tags: ['skill-validator-v*']
   pull_request:
     paths: ['skill_validator/**']
 
@@ -23,3 +24,55 @@ jobs:
           workspaces: skill_validator
       - run: cargo test --all-features
       - run: cargo clippy -- -D warnings
+
+  release:
+    name: 'Release (${{ matrix.target }})'
+    if: startsWith(github.ref, 'refs/tags/skill-validator-v')
+    needs: [test]
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: skill_validator
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          cargo install cross --locked
+        working-directory: .
+
+      - name: Build (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build (cross)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          tar czf skill-validator-${{ matrix.target }}.tar.gz \
+            -C target/${{ matrix.target }}/release skill-validator
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: skill_validator/skill-validator-${{ matrix.target }}.tar.gz
