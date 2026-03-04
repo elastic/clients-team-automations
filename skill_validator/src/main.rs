@@ -66,6 +66,10 @@ struct LintArgs {
     #[arg(long, value_name = "ID")]
     explain: Option<String>,
 
+    /// Automatically fix auto-fixable issues
+    #[arg(long)]
+    fix: bool,
+
     /// Only show errors, suppress warnings
     #[arg(short, long)]
     quiet: bool,
@@ -206,6 +210,9 @@ fn run_lint_command(args: LintArgs) {
         args.quiet,
     ) {
         Ok(lint_report) => {
+            if args.fix {
+                eprintln!("No auto-fixable issues available. All lints are report-only.");
+            }
             report::print_report(&lint_report, &format, args.verbose);
             if lint_report.has_errors() {
                 process::exit(1);
