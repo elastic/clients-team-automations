@@ -69,6 +69,14 @@ pub fn run_all_lints_with_root(
         all_lints.retain(|l| filter_ids.contains(&l.id));
     }
 
+    let mut hbs = handlebars::Handlebars::new();
+    hbs.set_strict_mode(false);
+    for lint in &all_lints {
+        if let Some(ref tmpl) = lint.per_result_error_template {
+            let _ = hbs.register_template_string(&lint.id, tmpl);
+        }
+    }
+
     let mut findings = Vec::new();
     let mut errors = 0usize;
     let mut warnings = 0usize;
@@ -116,7 +124,7 @@ pub fn run_all_lints_with_root(
             let detail = lint
                 .per_result_error_template
                 .as_ref()
-                .map(|tmpl| render_template(tmpl, row));
+                .map(|_| render_template(&hbs, &lint.id, row));
 
             let filename = find_field_string(row, &["span_filename", "filename"]);
             let line = find_field_i64(row, &["span_begin_line", "begin_line"]);
@@ -184,21 +192,37 @@ fn find_field_i64(row: &BTreeMap<Arc<str>, FieldValue>, candidates: &[&str]) -> 
     None
 }
 
-fn render_template(template: &str, row: &BTreeMap<Arc<str>, FieldValue>) -> String {
-    let mut result = template.to_string();
-    for (key, value) in row {
-        let placeholder = format!("{{{{{key}}}}}");
-        let replacement = match value {
-            FieldValue::String(s) => s.to_string(),
-            FieldValue::Int64(i) => i.to_string(),
-            FieldValue::Uint64(u) => u.to_string(),
-            FieldValue::Float64(f) => f.to_string(),
-            FieldValue::Boolean(b) => b.to_string(),
-            FieldValue::Null => "<null>".to_string(),
-            FieldValue::List(l) => format!("{l:?}"),
-            _ => format!("{value:?}"),
-        };
-        result = result.replace(&placeholder, &replacement);
+fn render_template(
+    hbs: &handlebars::Handlebars<'_>,
+    lint_id: &str,
+    row: &BTreeMap<Arc<str>, FieldValue>,
+) -> String {
+    let context = row_to_json(row);
+    hbs.render(lint_id, &context).unwrap_or_else(|e| {
+        format!("<template error: {e}>")
+    })
+}
+
+fn row_to_json(row: &BTreeMap<Arc<str>, FieldValue>) -> serde_json::Value {
+    let map: serde_json::Map<String, serde_json::Value> = row
+        .iter()
+        .map(|(k, v)| (k.to_string(), field_value_to_json(v)))
+        .collect();
+    serde_json::Value::Object(map)
+}
+
+fn field_value_to_json(v: &FieldValue) -> serde_json::Value {
+    match v {
+        FieldValue::String(s) => serde_json::Value::String(s.to_string()),
+        FieldValue::Int64(i) => serde_json::json!(i),
+        FieldValue::Uint64(u) => serde_json::json!(u),
+        FieldValue::Float64(f) => serde_json::json!(f),
+        FieldValue::Boolean(b) => serde_json::Value::Bool(*b),
+        FieldValue::Null => serde_json::Value::Null,
+        FieldValue::List(l) => {
+            let items: Vec<serde_json::Value> = l.iter().map(field_value_to_json).collect();
+            serde_json::Value::Array(items)
+        }
+        other => serde_json::json!(format!("{other:?}")),
     }
-    result
 }
