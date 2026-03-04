@@ -28,3 +28,4 @@ thiserror = "2"
 
 [dev-dependencies]
 insta = "1"
+tempfile = "3.26.0"
