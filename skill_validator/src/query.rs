@@ -78,6 +78,9 @@ pub fn load_builtin_lints() -> Vec<SkillLint> {
         include_lint!("skill_name_invalid_format.ron"),
         include_lint!("skill_duplicate_name.ron"),
         include_lint!("skill_mixed_script_languages.ron"),
+        include_lint!("skill_name_consecutive_hyphens.ron"),
+        include_lint!("skill_name_too_long.ron"),
+        include_lint!("skill_description_too_long.ron"),
         // Warn-level
         include_lint!("skill_description_too_short.ron"),
         include_lint!("skill_body_too_long.ron"),

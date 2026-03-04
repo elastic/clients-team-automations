@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 143
+expression: snapshot_report(&report)
+---
+error[skill_description_too_long]: skills/test/long-desc/SKILL.md:1: skills/test/long-desc/SKILL.md description is 1309 characters (maximum: 1024)
+
+Ran 1 lints: 1 errors, 0 warnings

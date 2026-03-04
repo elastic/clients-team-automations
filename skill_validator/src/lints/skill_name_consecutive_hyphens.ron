@@ -1,0 +1,30 @@
+SkillLint(
+    id: "skill_name_consecutive_hyphens",
+    human_readable_name: "skill name contains consecutive hyphens",
+    description: "The frontmatter `name` must not contain consecutive hyphens (`--`).",
+    lint_level: Deny,
+    reference_link: Some("https://agentskills.io/specification#name-field"),
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            name @filter(op: "is_not_null")
+                 @filter(op: "regex", value: ["$consecutive_hyphens"])
+                 @output
+
+            skill_file_path @output
+
+            span_: frontmatter_span @optional {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+        "consecutive_hyphens": "--",
+    },
+    error_message: "The `name` field contains consecutive hyphens (`--`). Use single hyphens to separate words in kebab-case names.",
+    per_result_error_template: Some("{{skill_file_path}} has name '{{name}}' containing consecutive hyphens"),
+)

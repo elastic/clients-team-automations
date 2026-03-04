@@ -119,6 +119,30 @@ fn detects_name_invalid_format() {
     insta::assert_snapshot!("name_invalid_format", snapshot_report(&report));
 }
 
+#[test]
+fn detects_name_consecutive_hyphens() {
+    let report = run_lints_on("name_consecutive_hyphens", &["skill_name_consecutive_hyphens"]);
+    assert!(report.errors > 0, "expected errors for name_consecutive_hyphens fixture");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_name_consecutive_hyphens"));
+    insta::assert_snapshot!("name_consecutive_hyphens", snapshot_report(&report));
+}
+
+#[test]
+fn detects_name_too_long() {
+    let report = run_lints_on("name_too_long", &["skill_name_too_long"]);
+    assert!(report.errors > 0, "expected errors for name_too_long fixture");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_name_too_long"));
+    insta::assert_snapshot!("name_too_long", snapshot_report(&report));
+}
+
+#[test]
+fn detects_description_too_long() {
+    let report = run_lints_on("description_too_long", &["skill_description_too_long"]);
+    assert!(report.errors > 0, "expected errors for description_too_long fixture");
+    assert!(report.findings.iter().any(|f| f.lint_id == "skill_description_too_long"));
+    insta::assert_snapshot!("description_too_long", snapshot_report(&report));
+}
+
 // ---- Warn-level lints ----
 
 #[test]
