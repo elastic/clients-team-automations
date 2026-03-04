@@ -1,0 +1,221 @@
+# skill-validator
+
+A [Trustfall](https://github.com/obi1kenobi/trustfall)-powered linting tool for
+validating [Agent Skills](https://agentskills.io/) repositories. Lints are
+expressed as declarative Trustfall queries in `.ron` files -- checks are
+configuration, not code.
+
+## Installation
+
+### From source
+
+```bash
+cargo install --path skill_validator
+```
+
+### Release binary
+
+Download a pre-built binary from
+[GitHub Releases](https://github.com/elastic/clients-team-automations/releases)
+and place it on your `PATH`.
+
+## Usage
+
+```
+skill-validator [OPTIONS] [SKILLS_DIR]
+```
+
+By default, validates the `./skills` directory using built-in lints.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `-c, --config <PATH>` | Path to `.skill-validator.toml` (default: `./.skill-validator.toml`) |
+| `-f, --format <FMT>` | Output format: `human`, `json`, `github-actions` (default: `human`) |
+| `-l, --lint <ID>` | Run only specific lint(s) (repeatable) |
+| `--deny <ID>` | Override lint level to Deny (repeatable) |
+| `--warn <ID>` | Override lint level to Warn (repeatable) |
+| `--allow <ID>` | Override lint level to Allow (repeatable) |
+| `--list-lints` | List all available lints and exit |
+| `--explain <ID>` | Show detailed explanation for a lint |
+| `-q, --quiet` | Only show errors, suppress warnings |
+| `-v, --verbose` | Show detailed diagnostic info |
+
+When the `GITHUB_ACTIONS` environment variable is set, the output format
+automatically switches to `github-actions`, producing `::error::` and
+`::warning::` annotations for inline PR comments.
+
+### Examples
+
+```bash
+# Validate the default skills/ directory
+skill-validator
+
+# Validate a specific directory with verbose output
+skill-validator -v ./my-skills
+
+# Run only specific lints
+skill-validator --lint skill_missing_name --lint skill_flat_layout
+
+# Promote a warning to an error
+skill-validator --deny skill_body_too_long
+```
+
+## Available lints
+
+Run `skill-validator --list-lints` to see all lints. Run
+`skill-validator --explain <ID>` for a detailed explanation of any lint.
+
+### Deny-level (errors)
+
+| Lint ID | Description |
+|---------|-------------|
+| `skill_flat_layout` | SKILL.md found at wrong nesting depth |
+| `skill_missing_frontmatter` | No YAML frontmatter delimiters |
+| `skill_missing_name` | Frontmatter missing `name` field |
+| `skill_missing_description` | Frontmatter missing `description` field |
+| `skill_name_mismatch` | `name` doesn't match `<group>-<folder>` convention |
+| `skill_name_invalid_format` | `name` is not valid kebab-case |
+| `skill_duplicate_name` | Two skills share the same name |
+| `skill_mixed_script_languages` | `scripts/` uses multiple languages |
+
+### Warn-level (warnings)
+
+| Lint ID | Description |
+|---------|-------------|
+| `skill_description_too_short` | Description under 20 words |
+| `skill_body_too_long` | Body exceeds 500 lines |
+| `skill_missing_examples_section` | No `## Examples` section |
+| `skill_missing_guidelines_section` | No `## Guidelines` section |
+
+## Ad-hoc query mode
+
+The same Trustfall adapter that powers lints is exposed as an interactive query
+interface. Any question expressible over the
+[schema](skills_schema.graphql) can be answered without writing Rust code.
+
+```
+skill-validator query [OPTIONS] [SKILLS_DIR]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-q, --query <QUERY>` | Trustfall query string (reads from stdin if omitted) |
+| `-a, --args <JSON>` | Query arguments as JSON object (default: `{}`) |
+| `-f, --format <FMT>` | Output format: `table`, `json`, `csv` (default: `table`) |
+| `--schema` | Print the full GraphQL schema and exit |
+
+### Query examples
+
+**Skills per group folder:**
+
+```bash
+skill-validator query -q '{
+    GroupFolder {
+        name @output
+        skill_count @output
+    }
+}'
+```
+
+**Skills with the longest body:**
+
+```bash
+skill-validator query -q '{
+    Skill {
+        skill_file_path @output
+        body_line_count @filter(op: ">", value: ["$threshold"]) @output
+    }
+}' -a '{"threshold": 200}'
+```
+
+**Find skills without an Examples section:**
+
+```bash
+skill-validator query -q '{
+    Skill {
+        skill_file_path @output
+        section @fold @transform(op: "count") @filter(op: "=", value: ["$zero"]) {
+            heading @filter(op: "regex", value: ["$pattern"])
+        }
+    }
+}' -a '{"zero": 0, "pattern": "(?i)^examples?$"}'
+```
+
+Discover a pattern interactively, then save the query as a `.ron` lint to
+enforce it in CI -- no Rust code changes required.
+
+## GitHub Action
+
+Reference the action from any workflow:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: elastic/clients-team-automations/skill_validator@main
+        with:
+          skills-dir: skills
+```
+
+### Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `skills-dir` | `skills` | Path to the skills directory |
+| `config` | `.skill-validator.toml` | Path to config file |
+| `version` | `latest` | Release version to download (e.g. `v0.1.0`) |
+| `extra-args` | | Additional CLI arguments |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `exit-code` | `0` = pass, `1` = lint failures found |
+
+## Pre-commit hook
+
+Add to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/elastic/clients-team-automations
+    rev: skill-validator-v0.1.0
+    hooks:
+      - id: validate-skills
+```
+
+Requires the `skill-validator` binary on `PATH` (via `cargo install` or a
+release binary).
+
+## Configuration
+
+Create a `.skill-validator.toml` at your repo root:
+
+```toml
+# Path to the skills directory (default: "skills")
+skills_dir = "skills"
+
+# Naming convention template (default: "{{group}}-{{skill}}")
+name_pattern = "{{group}}-{{skill}}"
+
+# Per-lint level overrides
+[lints]
+skill_body_too_long = "deny"
+skill_missing_guidelines_section = "allow"
+
+# Directories containing additional .ron lint files
+custom_lint_dirs = ["my-lints/"]
+
+# File extensions excluded from mixed-language checks in scripts/
+data_extensions = ["txt", "md", "json", "yaml", "yml", "cfg", "ini", "toml", "env", "csv"]
+```
+
+### Precedence (highest wins)
+
+1. CLI flags (`--deny`, `--warn`, `--allow`, `--lint`)
+2. `.skill-validator.toml` `[lints]` table
+3. Built-in defaults from `.ron` files
