@@ -393,8 +393,7 @@ const COMMENT_MARKER: &str = "<!-- skill-validator-bot -->";
 
 fn escape_md_table_cell(s: &str) -> String {
     s.replace('|', "\\|")
-        .replace('\r', " ")
-        .replace('\n', " ")
+        .replace(['\r', '\n'], " ")
 }
 
 fn render_findings_table(findings: &[&LintFinding]) -> String {
