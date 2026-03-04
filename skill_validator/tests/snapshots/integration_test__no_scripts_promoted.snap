@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 212
+expression: snapshot_report(&report)
+---
+warning[skill_has_no_scripts]: skills/test/no-scripts/SKILL.md:1: skills/test/no-scripts/SKILL.md has no scripts/ directory
+
+Ran 1 lints: 0 errors, 1 warnings

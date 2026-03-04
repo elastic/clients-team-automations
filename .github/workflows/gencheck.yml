@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   check-generated:
+    if: false # temporarily disabled — no generated files to check yet
     name: 'Detect Generated File Edits'
     runs-on: 'ubuntu-latest'
     steps:

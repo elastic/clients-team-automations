@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 129
+expression: snapshot_report(&report)
+---
+warning[skill_description_too_short]: skills/test/short-desc/SKILL.md:1: skills/test/short-desc/SKILL.md description is only 2 words (minimum 20)
+
+Ran 1 lints: 0 errors, 1 warnings

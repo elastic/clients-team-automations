@@ -1,0 +1,174 @@
+name: 'Validate Agent Skills'
+description: 'Lint and validate Agent Skills repository structure and content'
+
+# When using post-comment, add a concurrency group to the calling workflow
+# to prevent duplicate comments from parallel runs on the same PR:
+#
+#   concurrency:
+#     group: 'skill-validator-${{ github.event.pull_request.number }}'
+#     cancel-in-progress: true
+
+inputs:
+  skills-dir:
+    description: 'Path to the skills directory'
+    required: false
+    default: 'skills'
+  config:
+    description: 'Path to .skill-validator.toml'
+    required: false
+    default: '.skill-validator.toml'
+  version:
+    description: 'skill-validator release version to download (e.g. "v0.1.0"). Defaults to latest.'
+    required: false
+    default: 'latest'
+  scope:
+    description: 'Validation scope: "all" validates every skill, "changed" validates only skills with files changed in the current PR/push'
+    required: false
+    default: 'all'
+  base:
+    description: 'Base git ref for changed-file detection (only used when scope is "changed"). Defaults to the PR base branch.'
+    required: false
+    default: ''
+  extra-args:
+    description: 'Additional CLI arguments'
+    required: false
+    default: ''
+  github-token:
+    description: 'GitHub token for posting PR comments (requires pull-requests: write)'
+    required: false
+    default: ''
+  post-comment:
+    description: 'Whether to post a validation summary comment on the PR'
+    required: false
+    default: 'false'
+  add-summary:
+    description: 'Whether to write a Job Summary'
+    required: false
+    default: 'true'
+
+outputs:
+  exit-code:
+    description: 'Exit code of the skill-validator run (0 = pass, 1 = lint failures found)'
+    value: ${{ steps.validate.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Determine download URL'
+      id: url
+      shell: 'bash'
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        VERSION="${INPUT_VERSION}"
+        if [ "$VERSION" = "latest" ]; then
+          TAG=$(gh api repos/elastic/clients-team-automations/releases \
+            --jq '[.[] | select(.tag_name | startswith("skill-validator-v"))][0].tag_name' \
+          ) || { echo "::error::Failed to resolve latest skill-validator release"; exit 1; }
+          if [ -z "$TAG" ]; then
+            echo "::error::No skill-validator release found"; exit 1
+          fi
+          URL="https://github.com/elastic/clients-team-automations/releases/download/${TAG}"
+        else
+          URL="https://github.com/elastic/clients-team-automations/releases/download/skill-validator-${VERSION}"
+        fi
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  RUST_ARCH="x86_64" ;;
+          aarch64) RUST_ARCH="aarch64" ;;
+          arm64)   RUST_ARCH="aarch64" ;;
+          *)       echo "::error::Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+        case "$OS" in
+          linux)  RUST_TARGET="${RUST_ARCH}-unknown-linux-gnu" ;;
+          darwin) RUST_TARGET="${RUST_ARCH}-apple-darwin" ;;
+          *)      echo "::error::Unsupported OS: $OS"; exit 1 ;;
+        esac
+        echo "url=${URL}/skill-validator-${RUST_TARGET}.tar.gz" >> "$GITHUB_OUTPUT"
+
+    - name: 'Install skill-validator'
+      shell: 'bash'
+      run: |
+        INSTALL_DIR="${RUNNER_TEMP}/skill-validator"
+        mkdir -p "$INSTALL_DIR"
+        curl -fsSL "${{ steps.url.outputs.url }}" | tar xz -C "$INSTALL_DIR"
+        echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+    - name: 'Run validation'
+      id: validate
+      shell: 'bash'
+      env:
+        INPUT_SCOPE: ${{ inputs.scope }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_ADD_SUMMARY: ${{ inputs.add-summary }}
+        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
+        INPUT_SKILLS_DIR: ${{ inputs.skills-dir }}
+      run: |
+        SCOPE_ARGS="--scope ${INPUT_SCOPE}"
+        if [ -n "${INPUT_BASE}" ]; then
+          SCOPE_ARGS="${SCOPE_ARGS} --base ${INPUT_BASE}"
+        fi
+
+        OUTPUT_ARGS=""
+        if [ "${INPUT_ADD_SUMMARY}" = "true" ]; then
+          OUTPUT_ARGS="${OUTPUT_ARGS} --summary ${RUNNER_TEMP}/skill-validator-summary.md"
+        fi
+        if [ "${INPUT_POST_COMMENT}" = "true" ]; then
+          OUTPUT_ARGS="${OUTPUT_ARGS} --comment ${RUNNER_TEMP}/skill-validator-comment.md"
+        fi
+
+        EXIT_CODE=0
+        skill-validator \
+          --format github-actions \
+          --config "${INPUT_CONFIG}" \
+          ${SCOPE_ARGS} \
+          ${OUTPUT_ARGS} \
+          ${INPUT_EXTRA_ARGS} \
+          "${INPUT_SKILLS_DIR}" || EXIT_CODE=$?
+        echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+        exit "$EXIT_CODE"
+
+    - name: 'Write Job Summary'
+      if: always() && inputs.add-summary == 'true'
+      shell: 'bash'
+      run: |
+        SUMMARY_FILE="${RUNNER_TEMP}/skill-validator-summary.md"
+        if [ -f "$SUMMARY_FILE" ]; then
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: 'Post PR comment'
+      if: always() && inputs.post-comment == 'true' && github.event_name == 'pull_request'
+      shell: 'bash'
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        COMMENT_FILE="${RUNNER_TEMP}/skill-validator-comment.md"
+        if [ ! -f "$COMMENT_FILE" ]; then
+          echo "No comment file found, skipping"
+          exit 0
+        fi
+
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        if [ -z "$PR_NUMBER" ]; then
+          echo "No PR number found, skipping"
+          exit 0
+        fi
+
+        MARKER="<!-- skill-validator-bot -->"
+        COMMENT_BODY="$(cat "$COMMENT_FILE")"
+
+        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || echo "")
+
+        if [ -n "$COMMENT_ID" ]; then
+          gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            -X PATCH -f body="$COMMENT_BODY"
+        else
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            -f body="$COMMENT_BODY"
+        fi

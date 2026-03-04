@@ -1,0 +1,273 @@
+schema {
+    query: RootQuery
+}
+
+"""
+Entry point for querying skills in a repository.
+"""
+type RootQuery {
+    """
+    All valid skills in the repository (SKILL.md at correct nesting depth).
+    """
+    Skill: [Skill!]!
+
+    """
+    All group folders directly under the skills root.
+    """
+    GroupFolder: [GroupFolder!]!
+
+    """
+    Every SKILL.md file discovered in the repository, regardless of location.
+    Includes files at valid depths and invalid depths (flat layout, too deep, etc.).
+    Lints filter on `depth` to detect structural violations.
+    """
+    DiscoveredSkillFile: [DiscoveredSkillFile!]!
+}
+
+# ---------------------------------------------------------------------------
+# Core types
+# ---------------------------------------------------------------------------
+
+"""
+A skill discovered in the repository.
+A valid skill is a directory containing a SKILL.md file at the correct nesting depth.
+"""
+type Skill {
+    # ---- Identity & location ----
+
+    """The directory name of the skill folder (e.g. "query-authoring")."""
+    folder_name: String!
+
+    """The group folder name this skill is nested under (e.g. "elasticsearch")."""
+    group_folder: String!
+
+    """Relative path from the repo root to the skill directory."""
+    path: String!
+
+    """Relative path from the repo root to the SKILL.md file."""
+    skill_file_path: String!
+
+    """Nesting depth under the skills root (valid skills are at depth 3)."""
+    depth: Int!
+
+    # ---- Frontmatter properties ----
+
+    """Whether the SKILL.md file has valid YAML frontmatter delimiters."""
+    has_frontmatter: Boolean!
+
+    """The raw YAML frontmatter text, if present."""
+    raw_frontmatter: String
+
+    """The `name` field from frontmatter, if present."""
+    name: String
+
+    """The `description` field from frontmatter, if present."""
+    description: String
+
+    """The `license` field from frontmatter, if present."""
+    license: String
+
+    """The `compatibility` field from frontmatter, if present."""
+    compatibility: String
+
+    """The `allowed-tools` field from frontmatter, if present."""
+    allowed_tools: String
+
+    """Character count of the description field."""
+    description_length: Int!
+
+    """Word count of the description field."""
+    description_word_count: Int!
+
+    # ---- Body properties ----
+
+    """Total line count of the SKILL.md file."""
+    total_line_count: Int!
+
+    """Line count of the markdown body (excluding frontmatter)."""
+    body_line_count: Int!
+
+    """Whether the body starts with a level-1 heading."""
+    has_title_heading: Boolean!
+
+    """The text of the first level-1 heading, if present."""
+    title_heading: String
+
+    # ---- Edges ----
+
+    """Frontmatter metadata key-value pairs."""
+    metadata: [MetadataEntry!]!
+
+    """All markdown sections (## headings) in the body."""
+    section: [Section!]!
+
+    """All subdirectories of this skill (scripts/, references/, assets/, etc.)."""
+    sub_dir: [SubDir!]!
+
+    """
+    All other skills in the repository (excluding this one).
+    Enables cross-skill comparisons (duplicate names, overlapping descriptions, etc.)
+    entirely within .ron queries using @tag + @filter.
+    """
+    all_other_skills: [Skill!]!
+
+    """Span information for the SKILL.md file (for error reporting)."""
+    span: Span!
+
+    """Span of the frontmatter block within SKILL.md."""
+    frontmatter_span: Span
+}
+
+"""
+A grouping folder directly under the skills root (e.g. "elasticsearch", "kibana").
+"""
+type GroupFolder {
+    """The folder name."""
+    name: String!
+
+    """Relative path from the repo root."""
+    path: String!
+
+    """Skills nested under this group folder."""
+    skill: [Skill!]!
+
+    """Count of skills in this group."""
+    skill_count: Int!
+}
+
+"""
+A SKILL.md file discovered anywhere in the repository tree.
+Not all discovered files are valid skills — some may be at wrong depths.
+"""
+type DiscoveredSkillFile {
+    """Relative path from the repo root."""
+    path: String!
+
+    """The parent directory name."""
+    parent_dir: String!
+
+    """Nesting depth under the skills root."""
+    depth: Int!
+
+    """The resolved Skill, if this file is at a valid location and parseable."""
+    skill: Skill
+
+    span: Span!
+}
+
+# ---------------------------------------------------------------------------
+# Markdown structure
+# ---------------------------------------------------------------------------
+
+"""
+A markdown section identified by a heading (## level).
+"""
+type Section {
+    """The heading level (1 = #, 2 = ##, etc.)."""
+    level: Int!
+
+    """The heading text (without the # prefix)."""
+    heading: String!
+
+    """The line number where this heading appears."""
+    line_number: Int!
+
+    """The full text content under this heading (until the next heading of same or higher level)."""
+    content: String!
+
+    """Line count of this section's content."""
+    content_line_count: Int!
+
+    """Code blocks within this section."""
+    code_block: [CodeBlock!]!
+}
+
+"""
+A fenced code block within markdown.
+"""
+type CodeBlock {
+    """The language tag (e.g. "json", "yaml", "bash"), if specified."""
+    language: String
+
+    """Whether a language tag is present."""
+    has_language_tag: Boolean!
+
+    """The line number where the code block starts."""
+    line_number: Int!
+
+    """The content of the code block."""
+    content: String!
+}
+
+# ---------------------------------------------------------------------------
+# Filesystem structure (generic)
+# ---------------------------------------------------------------------------
+
+"""
+A subdirectory of a skill (scripts/, references/, assets/, or any future subdirectory).
+"""
+type SubDir {
+    """The directory name (e.g. "scripts", "references", "assets")."""
+    name: String!
+
+    """Relative path from the repo root."""
+    path: String!
+
+    """All files in this subdirectory."""
+    file: [SubDirFile!]!
+
+    """Total number of files."""
+    file_count: Int!
+
+    """Unique file extensions across all files."""
+    unique_extensions: [String!]!
+
+    """Number of unique non-data-file extensions."""
+    unique_extension_count: Int!
+}
+
+"""
+A file inside a skill subdirectory.
+"""
+type SubDirFile {
+    """File name."""
+    name: String!
+
+    """File extension."""
+    extension: String!
+
+    """Relative path from the repo root."""
+    path: String!
+
+    """
+    Whether this file is classified as a data file (e.g. .json, .yaml, .csv).
+    Classification is driven by the `data_extensions` list in .skill-validator.toml.
+    """
+    is_data_file: Boolean!
+}
+
+# ---------------------------------------------------------------------------
+# Metadata & utility types
+# ---------------------------------------------------------------------------
+
+"""
+A key-value pair from the frontmatter `metadata` map.
+"""
+type MetadataEntry {
+    key: String!
+    value: String!
+}
+
+"""
+Source location information for error reporting.
+"""
+type Span {
+    """Relative file path from the repo root."""
+    filename: String!
+
+    """1-based starting line number."""
+    begin_line: Int!
+
+    """1-based ending line number."""
+    end_line: Int!
+}

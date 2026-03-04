@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 137
+expression: snapshot_report(&report)
+---
+warning[skill_body_too_long]: skills/test/long-body/SKILL.md:1: skills/test/long-body/SKILL.md body is 503 lines (recommended maximum: 500)
+
+Ran 1 lints: 0 errors, 1 warnings

@@ -1,0 +1,30 @@
+SkillLint(
+    id: "skill_name_missing_group_prefix",
+    human_readable_name: "skill name missing group folder prefix",
+    description: "The frontmatter `name` should start with the group folder name.",
+    lint_level: Deny,
+    reference_link: Some("https://agentskills.io/specification#name-field"),
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            name @filter(op: "is_not_null")
+                 @filter(op: "not_has_prefix", value: ["%group"])
+                 @output
+
+            group_folder @tag(name: "group") @output
+            skill_file_path @output
+
+            span_: frontmatter_span @optional {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+    },
+    error_message: "The `name` field does not start with the group folder name.",
+    per_result_error_template: Some("{{skill_file_path}} name '{{name}}' does not start with group '{{group_folder}}'"),
+)

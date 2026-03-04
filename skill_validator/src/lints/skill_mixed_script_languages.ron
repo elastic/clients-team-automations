@@ -1,0 +1,33 @@
+SkillLint(
+    id: "skill_mixed_script_languages",
+    human_readable_name: "scripts/ directory uses multiple languages",
+    description: "A skill's scripts/ directory contains scripts in more than one programming language.",
+    lint_level: Deny,
+    reference_link: None,
+    query: r#"
+    {
+        Skill {
+            skill_file_path @output
+            folder_name @output
+
+            sub_dir {
+                name @filter(op: "=", value: ["$scripts_dir_name"])
+                unique_extension_count @filter(op: ">", value: ["$one"])
+                unique_extensions @output(name: "script_extensions")
+                path @output(name: "scripts_path")
+            }
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "scripts_dir_name": "scripts",
+        "one": 1,
+    },
+    error_message: "A skill's scripts/ directory contains scripts written in multiple programming languages. Use a single language per skill.",
+    per_result_error_template: Some("{{scripts_path}} contains multiple script languages: {{script_extensions}}"),
+)

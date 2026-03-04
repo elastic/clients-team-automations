@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 135
+expression: snapshot_report(&report)
+---
+error[skill_name_too_long]: skills/test/long-name/SKILL.md:1: skills/test/long-name/SKILL.md has name 'this-is-a-very-long-skill-name-that-exceeds-the-sixty-four-character-maximum-limit' exceeding 64 characters
+
+Ran 1 lints: 1 errors, 0 warnings
