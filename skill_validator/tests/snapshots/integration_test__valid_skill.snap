@@ -1,0 +1,7 @@
+---
+source: tests/integration_test.rs
+assertion_line: 53
+expression: snapshot_report(&report)
+---
+
+Ran 12 lints: 0 errors, 0 warnings

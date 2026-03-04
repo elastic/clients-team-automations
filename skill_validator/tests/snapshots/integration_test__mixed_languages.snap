@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 103
+expression: snapshot_report(&report)
+---
+error[skill_mixed_script_languages]: skills/test/mixed-langs/SKILL.md:1: skills/test/mixed-langs/scripts contains multiple script languages: [String("py"), String("sh")]
+
+Ran 1 lints: 1 errors, 0 warnings

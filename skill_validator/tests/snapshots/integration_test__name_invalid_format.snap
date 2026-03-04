@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 119
+expression: snapshot_report(&report)
+---
+error[skill_name_invalid_format]: skills/test/bad-name/SKILL.md:1: skills/test/bad-name/SKILL.md has invalid name 'My Skill!'
+
+Ran 1 lints: 1 errors, 0 warnings

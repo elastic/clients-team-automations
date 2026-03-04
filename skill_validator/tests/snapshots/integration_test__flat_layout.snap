@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 79
+expression: snapshot_report(&report)
+---
+error[skill_flat_layout]: skills/flat-skill/SKILL.md:1: skills/flat-skill/SKILL.md is at the wrong depth (depth 2). Skills must be nested: skills/<folder>/<skill-name>/SKILL.md
+
+Ran 1 lints: 1 errors, 0 warnings

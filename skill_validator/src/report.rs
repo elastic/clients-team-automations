@@ -36,13 +36,16 @@ impl std::str::FromStr for OutputFormat {
 
 pub fn print_report(report: &LintReport, format: &OutputFormat, verbose: bool) {
     match format {
-        OutputFormat::Human => print_human(report, verbose),
+        OutputFormat::Human => eprint!("{}", render_human(report, verbose)),
         OutputFormat::Json => print_json(report),
         OutputFormat::GithubActions => print_github_actions(report),
     }
 }
 
-fn print_human(report: &LintReport, verbose: bool) {
+pub fn render_human(report: &LintReport, verbose: bool) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+
     for finding in &report.findings {
         let level_str = match finding.level {
             LintLevel::Deny => "error",
@@ -58,32 +61,40 @@ fn print_human(report: &LintReport, verbose: bool) {
 
         if let Some(detail) = &finding.detail {
             if !location.is_empty() {
-                eprintln!("{level_str}[{}]: {location}: {detail}", finding.lint_id);
+                writeln!(out, "{level_str}[{}]: {location}: {detail}", finding.lint_id).unwrap();
             } else {
-                eprintln!("{level_str}[{}]: {detail}", finding.lint_id);
+                writeln!(out, "{level_str}[{}]: {detail}", finding.lint_id).unwrap();
             }
         } else if !location.is_empty() {
-            eprintln!(
+            writeln!(
+                out,
                 "{level_str}[{}]: {location}: {}",
                 finding.lint_id, finding.message
-            );
+            )
+            .unwrap();
         } else {
-            eprintln!(
+            writeln!(
+                out,
                 "{level_str}[{}]: {}",
                 finding.lint_id, finding.message
-            );
+            )
+            .unwrap();
         }
 
         if verbose {
-            eprintln!("  help: {}", finding.message);
+            writeln!(out, "  help: {}", finding.message).unwrap();
         }
     }
 
-    eprintln!();
-    eprintln!(
+    writeln!(out).unwrap();
+    writeln!(
+        out,
         "Ran {} lints: {} errors, {} warnings",
         report.lints_run, report.errors, report.warnings
-    );
+    )
+    .unwrap();
+
+    out
 }
 
 fn print_json(report: &LintReport) {

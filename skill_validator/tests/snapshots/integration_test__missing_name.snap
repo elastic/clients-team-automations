@@ -1,0 +1,8 @@
+---
+source: tests/integration_test.rs
+assertion_line: 63
+expression: snapshot_report(&report)
+---
+error[skill_missing_name]: skills/test/missing-name/SKILL.md:1: skills/test/missing-name/SKILL.md frontmatter is missing required field: name
+
+Ran 1 lints: 1 errors, 0 warnings
