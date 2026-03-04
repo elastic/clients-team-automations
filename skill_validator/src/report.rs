@@ -352,6 +352,14 @@ fn escape_workflow_command(s: &str) -> String {
         .replace('\n', "%0A")
 }
 
+fn escape_workflow_property(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(':', "%3A")
+        .replace(',', "%2C")
+}
+
 fn print_github_actions(report: &LintReport) {
     for finding in &report.findings {
         let cmd = match finding.level {
@@ -366,11 +374,11 @@ fn print_github_actions(report: &LintReport) {
 
         match (&finding.filename, finding.line) {
             (Some(file), Some(line)) => {
-                let file = escape_workflow_command(file);
+                let file = escape_workflow_property(file);
                 println!("::{cmd} file={file},line={line}::[{}] {msg}", finding.lint_id);
             }
             (Some(file), None) => {
-                let file = escape_workflow_command(file);
+                let file = escape_workflow_property(file);
                 println!("::{cmd} file={file}::[{}] {msg}", finding.lint_id);
             }
             _ => {

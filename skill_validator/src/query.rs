@@ -4,8 +4,11 @@ use trustfall::TransparentValue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum LintLevel {
+    #[serde(alias = "deny")]
     Deny,
+    #[serde(alias = "warn")]
     Warn,
+    #[serde(alias = "allow")]
     Allow,
 }
 

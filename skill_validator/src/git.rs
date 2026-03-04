@@ -45,7 +45,8 @@ pub fn changed_skill_dirs(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let skills_prefix = skills_dir.to_string_lossy();
+    let raw_prefix = skills_dir.to_string_lossy();
+    let skills_prefix = raw_prefix.trim_end_matches('/');
 
     let mut dirs = HashSet::new();
 
@@ -56,7 +57,7 @@ pub fn changed_skill_dirs(
         }
 
         // Only consider files under skills_dir
-        let rel = match strip_prefix_normalized(line, &skills_prefix) {
+        let rel = match strip_prefix_normalized(line, skills_prefix) {
             Some(r) => r,
             None => continue,
         };
