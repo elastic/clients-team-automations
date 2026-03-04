@@ -25,5 +25,5 @@ SkillLint(
         "max_chars": 1024,
     },
     error_message: "The `description` field exceeds the maximum length of 1024 characters. Keep descriptions concise.",
-    per_result_error_template: Some("{{skill_file_path}} description is {{description_length}} characters (maximum: 1024)"),
+    per_result_error_template: Some("{{skill_file_path}} description is {{description_length}} characters (maximum: {{max_chars}})"),
 )

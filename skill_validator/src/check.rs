@@ -131,7 +131,7 @@ pub fn run_all_lints_with_root(
             let detail = lint
                 .per_result_error_template
                 .as_ref()
-                .map(|_| render_template(&hbs, &lint.id, row));
+                .map(|_| render_template(&hbs, &lint.id, row, &lint.arguments));
 
             let filename = find_field_string(row, &["span_filename", "filename"]);
             let line = find_field_i64(row, &["span_begin_line", "begin_line"]);
@@ -206,11 +206,34 @@ fn render_template(
     hbs: &handlebars::Handlebars<'_>,
     lint_id: &str,
     row: &BTreeMap<Arc<str>, FieldValue>,
+    arguments: &BTreeMap<String, TransparentValue>,
 ) -> String {
-    let context = row_to_json(row);
+    let mut context = row_to_json(row);
+    if let serde_json::Value::Object(ref mut map) = context {
+        for (k, v) in arguments {
+            map.entry(k.clone())
+                .or_insert_with(|| transparent_to_json(v));
+        }
+    }
     hbs.render(lint_id, &context).unwrap_or_else(|e| {
         format!("<template error: {e}>")
     })
+}
+
+fn transparent_to_json(tv: &TransparentValue) -> serde_json::Value {
+    match tv {
+        TransparentValue::String(s) => serde_json::Value::String(s.to_string()),
+        TransparentValue::Float64(f) => serde_json::json!(f),
+        TransparentValue::Int64(i) => serde_json::json!(i),
+        TransparentValue::Uint64(u) => serde_json::json!(u),
+        TransparentValue::Boolean(b) => serde_json::Value::Bool(*b),
+        TransparentValue::Null => serde_json::Value::Null,
+        TransparentValue::List(l) => {
+            let items: Vec<serde_json::Value> = l.iter().map(transparent_to_json).collect();
+            serde_json::Value::Array(items)
+        }
+        _ => serde_json::Value::Null,
+    }
 }
 
 fn row_to_json(row: &BTreeMap<Arc<str>, FieldValue>) -> serde_json::Value {

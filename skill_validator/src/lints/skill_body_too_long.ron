@@ -22,5 +22,5 @@ SkillLint(
         "max_lines": 500,
     },
     error_message: "SKILL.md body exceeds the recommended 500-line limit. Move detailed reference material to the references/ subdirectory.",
-    per_result_error_template: Some("{{skill_file_path}} body is {{body_line_count}} lines (recommended maximum: 500)"),
+    per_result_error_template: Some("{{skill_file_path}} body is {{body_line_count}} lines (recommended maximum: {{max_lines}})"),
 )

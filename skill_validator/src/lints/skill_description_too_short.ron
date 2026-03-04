@@ -25,5 +25,5 @@ SkillLint(
         "min_words": 20,
     },
     error_message: "The `description` field is too short. It should be at least 20 words and describe both what the skill does and when an agent should activate it.",
-    per_result_error_template: Some("{{skill_file_path}} description is only {{description_word_count}} words (minimum 20)"),
+    per_result_error_template: Some("{{skill_file_path}} description is only {{description_word_count}} words (minimum {{min_words}})"),
 )

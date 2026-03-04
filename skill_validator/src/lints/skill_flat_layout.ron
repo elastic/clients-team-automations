@@ -23,5 +23,5 @@ SkillLint(
         "min_depth": 3,
     },
     error_message: "A SKILL.md file was found too close to the skills root. Skills must be nested at least 3 levels deep: skills/<folder>/.../<skill-name>/SKILL.md.",
-    per_result_error_template: Some("{{path}} is at depth {{depth}}, minimum is 3. Skills must be nested: skills/<folder>/.../<skill-name>/SKILL.md"),
+    per_result_error_template: Some("{{path}} is at depth {{depth}}, minimum is {{min_depth}}. Skills must be nested: skills/<folder>/.../<skill-name>/SKILL.md"),
 )
