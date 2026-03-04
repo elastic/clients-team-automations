@@ -1,0 +1,26 @@
+SkillLint(
+    id: "skill_body_too_long",
+    human_readable_name: "SKILL.md body exceeds 500 lines",
+    description: "The SKILL.md body (excluding frontmatter) exceeds the recommended 500-line limit.",
+    lint_level: Warn,
+    reference_link: Some("https://agentskills.io/specification#progressive-disclosure"),
+    query: r#"
+    {
+        Skill {
+            body_line_count @filter(op: ">", value: ["$max_lines"]) @output
+
+            skill_file_path @output
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "max_lines": 500,
+    },
+    error_message: "SKILL.md body exceeds the recommended 500-line limit. Move detailed reference material to the references/ subdirectory.",
+    per_result_error_template: Some("{{skill_file_path}} body is {{body_line_count}} lines (recommended maximum: 500)"),
+)

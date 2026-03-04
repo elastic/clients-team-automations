@@ -1,0 +1,35 @@
+SkillLint(
+    id: "skill_missing_guidelines_section",
+    human_readable_name: "SKILL.md missing Guidelines section",
+    description: "The SKILL.md body should contain a '## Guidelines' section.",
+    lint_level: Warn,
+    reference_link: None,
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            body_line_count @filter(op: ">", value: ["$zero"])
+
+            section @fold
+                    @transform(op: "count")
+                    @filter(op: "=", value: ["$zero"]) {
+                heading @filter(op: "regex", value: ["$guidelines_pattern"])
+            }
+
+            skill_file_path @output
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+        "zero": 0,
+        "guidelines_pattern": "(?i)^guidelines?$",
+    },
+    error_message: "SKILL.md is missing a 'Guidelines' section. Include usage guidelines to help agents apply the skill correctly.",
+    per_result_error_template: Some("{{skill_file_path}} has no '## Guidelines' section"),
+)

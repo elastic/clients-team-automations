@@ -1,0 +1,29 @@
+SkillLint(
+    id: "skill_description_too_short",
+    human_readable_name: "skill description is too short",
+    description: "The `description` field should be at least 20 words to adequately describe what the skill does and when to use it.",
+    lint_level: Warn,
+    reference_link: Some("https://agentskills.io/specification#description-field"),
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            description @filter(op: "is_not_null") @output
+            description_word_count @filter(op: "<", value: ["$min_words"]) @output
+
+            skill_file_path @output
+
+            span_: frontmatter_span @optional {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+        "min_words": 20,
+    },
+    error_message: "The `description` field is too short. It should be at least 20 words and describe both what the skill does and when an agent should activate it.",
+    per_result_error_template: Some("{{skill_file_path}} description is only {{description_word_count}} words (minimum 20)"),
+)

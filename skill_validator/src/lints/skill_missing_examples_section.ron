@@ -1,0 +1,35 @@
+SkillLint(
+    id: "skill_missing_examples_section",
+    human_readable_name: "SKILL.md missing Examples section",
+    description: "The SKILL.md body should contain an '## Examples' section.",
+    lint_level: Warn,
+    reference_link: None,
+    query: r#"
+    {
+        Skill {
+            has_frontmatter @filter(op: "=", value: ["$true"])
+            body_line_count @filter(op: ">", value: ["$zero"])
+
+            section @fold
+                    @transform(op: "count")
+                    @filter(op: "=", value: ["$zero"]) {
+                heading @filter(op: "regex", value: ["$examples_pattern"])
+            }
+
+            skill_file_path @output
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "true": true,
+        "zero": 0,
+        "examples_pattern": "(?i)^examples?$",
+    },
+    error_message: "SKILL.md is missing an 'Examples' section. Include concrete usage examples to help agents understand the skill.",
+    per_result_error_template: Some("{{skill_file_path}} has no '## Examples' section"),
+)

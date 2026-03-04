@@ -1,0 +1,28 @@
+SkillLint(
+    id: "skill_flat_layout",
+    human_readable_name: "SKILL.md at wrong nesting depth",
+    description: "A SKILL.md was found at the wrong nesting depth. Skills must be nested: skills/<folder>/<skill-name>/SKILL.md",
+    lint_level: Deny,
+    reference_link: Some("https://agentskills.io/specification#directory-structure"),
+    query: r#"
+    {
+        DiscoveredSkillFile {
+            is_valid_location @filter(op: "=", value: ["$false"])
+
+            path @output
+            parent_dir @output
+            depth @output
+
+            span_: span {
+                filename @output
+                begin_line @output
+                end_line @output
+            }
+        }
+    }"#,
+    arguments: {
+        "false": false,
+    },
+    error_message: "A SKILL.md file was found at the wrong depth. Skills must be nested under skills/<folder>/<skill-name>/SKILL.md.",
+    per_result_error_template: Some("{{path}} is at the wrong depth (depth {{depth}}). Skills must be nested: skills/<folder>/<skill-name>/SKILL.md"),
+)
