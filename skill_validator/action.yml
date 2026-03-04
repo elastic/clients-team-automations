@@ -1,0 +1,74 @@
+name: 'Validate Agent Skills'
+description: 'Lint and validate Agent Skills repository structure and content'
+
+inputs:
+  skills-dir:
+    description: 'Path to the skills directory'
+    required: false
+    default: 'skills'
+  config:
+    description: 'Path to .skill-validator.toml'
+    required: false
+    default: '.skill-validator.toml'
+  version:
+    description: 'skill-validator release version to download (e.g. "v0.1.0"). Defaults to latest.'
+    required: false
+    default: 'latest'
+  extra-args:
+    description: 'Additional CLI arguments'
+    required: false
+    default: ''
+
+outputs:
+  exit-code:
+    description: 'Exit code of the skill-validator run (0 = pass, 1 = lint failures found)'
+    value: ${{ steps.validate.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Determine download URL'
+      id: url
+      shell: 'bash'
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          URL="https://github.com/elastic/clients-team-automations/releases/latest/download"
+        else
+          URL="https://github.com/elastic/clients-team-automations/releases/download/skill-validator-${VERSION}"
+        fi
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  RUST_ARCH="x86_64" ;;
+          aarch64) RUST_ARCH="aarch64" ;;
+          arm64)   RUST_ARCH="aarch64" ;;
+          *)       echo "::error::Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+        case "$OS" in
+          linux)  RUST_TARGET="${RUST_ARCH}-unknown-linux-gnu" ;;
+          darwin) RUST_TARGET="${RUST_ARCH}-apple-darwin" ;;
+          *)      echo "::error::Unsupported OS: $OS"; exit 1 ;;
+        esac
+        echo "url=${URL}/skill-validator-${RUST_TARGET}.tar.gz" >> "$GITHUB_OUTPUT"
+
+    - name: 'Install skill-validator'
+      shell: 'bash'
+      run: |
+        INSTALL_DIR="${RUNNER_TEMP}/skill-validator"
+        mkdir -p "$INSTALL_DIR"
+        curl -fsSL "${{ steps.url.outputs.url }}" | tar xz -C "$INSTALL_DIR"
+        echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+    - name: 'Run validation'
+      id: validate
+      shell: 'bash'
+      run: |
+        EXIT_CODE=0
+        skill-validator \
+          --format github-actions \
+          --config "${{ inputs.config }}" \
+          ${{ inputs.extra-args }} \
+          "${{ inputs.skills-dir }}" || EXIT_CODE=$?
+        echo "exit-code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+        exit "$EXIT_CODE"
