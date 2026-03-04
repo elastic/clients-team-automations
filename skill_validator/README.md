@@ -41,6 +41,9 @@ By default, validates the `./skills` directory using built-in lints.
 | `--explain <ID>` | Show detailed explanation for a lint |
 | `--scope <SCOPE>` | Validation scope: `all` or `changed` (default: `all`) |
 | `--base <REF>` | Base git ref for changed-file detection (default: auto-detect) |
+| `--output <PATH>` | Write JSON report to file |
+| `--summary <PATH>` | Write Job Summary markdown to file |
+| `--comment <PATH>` | Write PR comment markdown to file (includes upsert marker) |
 | `-q, --quiet` | Only show errors, suppress warnings |
 | `-v, --verbose` | Show detailed diagnostic info |
 
@@ -206,6 +209,40 @@ jobs:
 > **Note:** `fetch-depth: 0` (full history) is required when using
 > `scope: changed` so that `git diff` can compare against the base ref.
 
+### PR comments and Job Summary
+
+The action can post a summary comment on the PR and write a
+[Job Summary](https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary)
+visible in the Actions tab. The comment is tracked with a hidden marker
+(`<!-- skill-validator-bot -->`) and is updated in place on subsequent
+pushes rather than creating duplicates.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: 'skill-validator-${{ github.event.pull_request.number }}'
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: elastic/clients-team-automations/skill_validator@main
+        with:
+          skills-dir: skills
+          post-comment: 'true'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+> **Concurrency group:** When `post-comment` is enabled, add a
+> `concurrency` group keyed on the PR number (as shown above). Without
+> it, two runs triggered by rapid pushes can race to create the comment
+> and produce duplicates. The concurrency group ensures only the latest
+> run completes.
+
 ### Inputs
 
 | Input | Default | Description |
@@ -216,6 +253,9 @@ jobs:
 | `scope` | `all` | Validation scope: `all` or `changed` |
 | `base` | *(auto-detect)* | Base git ref for changed-file detection (only with `scope: changed`) |
 | `extra-args` | | Additional CLI arguments |
+| `github-token` | | GitHub token for posting PR comments (requires `pull-requests: write`) |
+| `post-comment` | `false` | Post a validation summary comment on the PR |
+| `add-summary` | `true` | Write a Job Summary to the Actions tab |
 
 ### Outputs
 

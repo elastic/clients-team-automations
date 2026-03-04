@@ -1,6 +1,13 @@
 name: 'Validate Agent Skills'
 description: 'Lint and validate Agent Skills repository structure and content'
 
+# When using post-comment, add a concurrency group to the calling workflow
+# to prevent duplicate comments from parallel runs on the same PR:
+#
+#   concurrency:
+#     group: 'skill-validator-${{ github.event.pull_request.number }}'
+#     cancel-in-progress: true
+
 inputs:
   skills-dir:
     description: 'Path to the skills directory'
