@@ -3,7 +3,9 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
-use trustfall::{FieldValue, execute_query};
+use anyhow::Context;
+use comfy_table::Table;
+use trustfall::{execute_query, FieldValue};
 
 use crate::adapter::SkillsAdapter;
 use crate::config::Config;
@@ -24,37 +26,37 @@ pub fn run_query(
     format: &QueryFormat,
     skills_dir: &Path,
     config: &Config,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let query = match query_str {
         Some(q) => q.to_string(),
         None => {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
-                .map_err(|e| format!("failed to read query from stdin: {e}"))?;
+                .context("failed to read query from stdin")?;
             buf
         }
     };
 
     if query.trim().is_empty() {
-        return Err("no query provided (pass --query or pipe via stdin)".to_string());
+        anyhow::bail!("no query provided (pass --query or pipe via stdin)");
     }
 
     let args: BTreeMap<String, serde_json::Value> =
-        serde_json::from_str(args_json).map_err(|e| format!("invalid JSON arguments: {e}"))?;
+        serde_json::from_str(args_json).context("invalid JSON arguments")?;
 
     let trustfall_args: BTreeMap<String, FieldValue> = args
         .into_iter()
         .map(|(k, v)| (k, convert::json_to_field_value(&v)))
         .collect();
 
-    let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
+    let repo_root = std::env::current_dir().context("cannot get current directory")?;
     let skills_data = data::load_skills_data(skills_dir, &repo_root, config, None);
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 
     let results = execute_query(&schema, Arc::new(adapter), &query, trustfall_args)
-        .map_err(|e| format!("query execution failed: {e}"))?;
+        .context("query execution failed")?;
 
     let rows: Vec<BTreeMap<Arc<str>, FieldValue>> = results.collect();
 
@@ -110,37 +112,10 @@ fn print_table(rows: &[BTreeMap<Arc<str>, FieldValue>]) {
         })
         .collect();
 
-    let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
-    for row in &string_rows {
-        for (i, cell) in row.iter().enumerate() {
-            widths[i] = widths[i].max(cell.len());
-        }
-    }
-
-    let header_line: String = headers
-        .iter()
-        .enumerate()
-        .map(|(i, h)| format!("{:<width$}", h, width = widths[i]))
-        .collect::<Vec<_>>()
-        .join("  ");
-    println!("{header_line}");
-
-    let sep: String = widths
-        .iter()
-        .map(|&w| "-".repeat(w))
-        .collect::<Vec<_>>()
-        .join("  ");
-    println!("{sep}");
-
-    for row in &string_rows {
-        let line: String = row
-            .iter()
-            .enumerate()
-            .map(|(i, cell)| format!("{:<width$}", cell, width = widths[i]))
-            .collect::<Vec<_>>()
-            .join("  ");
-        println!("{line}");
-    }
+    let mut table = Table::new();
+    table.set_header(headers.clone());
+    table.add_rows(string_rows);
+    println!("{table}");
 }
 
 fn print_json(rows: &[BTreeMap<Arc<str>, FieldValue>]) {
@@ -167,25 +142,23 @@ fn print_csv(rows: &[BTreeMap<Arc<str>, FieldValue>]) {
     }
 
     let headers = collect_headers(rows);
-    println!("{}", headers.join(","));
+    let mut wtr = csv::WriterBuilder::new()
+        .from_writer(std::io::stdout());
+
+    let header_record: Vec<&str> = headers.iter().map(String::as_str).collect();
+    let _ = wtr.write_record(&header_record);
 
     for row in rows {
         let cells: Vec<String> = headers
             .iter()
             .map(|h| {
                 let key: Arc<str> = Arc::from(h.as_str());
-                let val = row.get(&key).map(field_value_to_string).unwrap_or_default();
-                csv_escape(&val)
+                row.get(&key).map(field_value_to_string).unwrap_or_default()
             })
             .collect();
-        println!("{}", cells.join(","));
+        let record: Vec<&str> = cells.iter().map(String::as_str).collect();
+        let _ = wtr.write_record(&record);
     }
-}
 
-fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
+    let _ = wtr.flush();
 }

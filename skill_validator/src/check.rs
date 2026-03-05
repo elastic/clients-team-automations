@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use trustfall::{FieldValue, execute_query};
 
 use crate::adapter::SkillsAdapter;
@@ -50,8 +51,8 @@ pub fn run_all_lints(
     builtin_lints: &[SkillLint],
     overrides: &LintLevelOverrides,
     opts: &LintRunOptions<'_>,
-) -> Result<LintReport, String> {
-    let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
+) -> anyhow::Result<LintReport> {
+    let repo_root = std::env::current_dir().context("cannot get current directory")?;
     run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, opts)
 }
 
@@ -62,7 +63,7 @@ pub fn run_all_lints_with_root(
     builtin_lints: &[SkillLint],
     overrides: &LintLevelOverrides,
     opts: &LintRunOptions<'_>,
-) -> Result<LintReport, String> {
+) -> anyhow::Result<LintReport> {
 
     let skills_data = data::load_skills_data(skills_dir, repo_root, config, opts.scope_filter);
     let skills_checked = skills_data.skills.len();
