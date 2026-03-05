@@ -3,6 +3,7 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use comfy_table::Table;
 use trustfall::{execute_query, FieldValue};
 
@@ -25,37 +26,37 @@ pub fn run_query(
     format: &QueryFormat,
     skills_dir: &Path,
     config: &Config,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let query = match query_str {
         Some(q) => q.to_string(),
         None => {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
-                .map_err(|e| format!("failed to read query from stdin: {e}"))?;
+                .context("failed to read query from stdin")?;
             buf
         }
     };
 
     if query.trim().is_empty() {
-        return Err("no query provided (pass --query or pipe via stdin)".to_string());
+        anyhow::bail!("no query provided (pass --query or pipe via stdin)");
     }
 
     let args: BTreeMap<String, serde_json::Value> =
-        serde_json::from_str(args_json).map_err(|e| format!("invalid JSON arguments: {e}"))?;
+        serde_json::from_str(args_json).context("invalid JSON arguments")?;
 
     let trustfall_args: BTreeMap<String, FieldValue> = args
         .into_iter()
         .map(|(k, v)| (k, convert::json_to_field_value(&v)))
         .collect();
 
-    let repo_root = std::env::current_dir().map_err(|e| format!("cannot get cwd: {e}"))?;
+    let repo_root = std::env::current_dir().context("cannot get current directory")?;
     let skills_data = data::load_skills_data(skills_dir, &repo_root, config, None);
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 
     let results = execute_query(&schema, Arc::new(adapter), &query, trustfall_args)
-        .map_err(|e| format!("query execution failed: {e}"))?;
+        .context("query execution failed")?;
 
     let rows: Vec<BTreeMap<Arc<str>, FieldValue>> = results.collect();
 

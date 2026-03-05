@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
 
+use anyhow::Context;
+
 /// Resolve the base ref for changed-file detection.
 ///
 /// Precedence: explicit `--base` flag > `GITHUB_BASE_REF` env var > `"origin/main"`.
@@ -27,7 +29,7 @@ pub fn changed_skill_dirs(
     base_ref: &str,
     skills_dir: &Path,
     repo_root: &Path,
-) -> Result<HashSet<String>, String> {
+) -> anyhow::Result<HashSet<String>> {
     let output = Command::new("git")
         .args([
             "diff",
@@ -37,11 +39,11 @@ pub fn changed_skill_dirs(
         ])
         .current_dir(repo_root)
         .output()
-        .map_err(|e| format!("failed to run git diff: {e}"))?;
+        .context("failed to run git diff")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("git diff failed: {stderr}"));
+        anyhow::bail!("git diff failed: {stderr}");
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
