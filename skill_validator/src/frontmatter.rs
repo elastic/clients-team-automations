@@ -49,7 +49,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     let end_line = end_idx + 1; // 1-based, the closing ---
     let body_start_line = end_idx + 2; // 1-based, first line after closing ---
 
-    let yaml_value: Result<serde_yaml::Value, _> = serde_yaml::from_str(&raw);
+    let yaml_value: Result<serde_yml::Value, _> = serde_yml::from_str(&raw);
 
     let mut fm = Frontmatter {
         raw,
@@ -58,10 +58,10 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
         ..Default::default()
     };
 
-    if let Ok(serde_yaml::Value::Mapping(map)) = yaml_value {
+    if let Ok(serde_yml::Value::Mapping(map)) = yaml_value {
         for (k, v) in &map {
             let key = match k {
-                serde_yaml::Value::String(s) => s.clone(),
+                serde_yml::Value::String(s) => s.clone(),
                 _ => format!("{k:?}"),
             };
             let value = yaml_value_to_string(v);
@@ -85,12 +85,12 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     }
 }
 
-fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
+fn yaml_value_to_string(v: &serde_yml::Value) -> String {
     match v {
-        serde_yaml::Value::String(s) => s.clone(),
-        serde_yaml::Value::Bool(b) => b.to_string(),
-        serde_yaml::Value::Number(n) => n.to_string(),
-        serde_yaml::Value::Null => String::new(),
+        serde_yml::Value::String(s) => s.clone(),
+        serde_yml::Value::Bool(b) => b.to_string(),
+        serde_yml::Value::Number(n) => n.to_string(),
+        serde_yml::Value::Null => String::new(),
         other => format!("{other:?}"),
     }
 }
