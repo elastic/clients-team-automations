@@ -294,6 +294,15 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .collect();
                 Box::new(items.into_iter())
             }),
+            ("MetadataEntry", "children") => resolve_neighbors_with(contexts, move |v| {
+                let entry = v.as_metadata_entry().unwrap();
+                let items: Vec<Vertex> = entry
+                    .children
+                    .iter()
+                    .map(|c| Vertex::MetadataEntry(c.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
             ("Skill", "section") => resolve_neighbors_with(contexts, move |v| {
                 let skill = v.as_skill().unwrap();
                 let items: Vec<Vertex> = skill

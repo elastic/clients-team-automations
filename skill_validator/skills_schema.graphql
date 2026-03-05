@@ -252,10 +252,14 @@ type SubDirFile {
 
 """
 A key-value pair from the frontmatter `metadata` map.
+When the YAML value is itself a mapping, `children` contains its nested entries.
 """
 type MetadataEntry {
     key: String!
     value: String!
+
+    """Child entries when the value is a YAML mapping (empty otherwise)."""
+    children: [MetadataEntry!]!
 }
 
 """
