@@ -176,7 +176,7 @@ fn run_query_command(args: QueryArgs) -> ExitCode {
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("Error: {e}");
+            eprintln!("Error: {e:#}");
             ExitCode::from(2)
         }
     }
@@ -259,7 +259,7 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
                 Some(dirs)
             }
             Err(e) => {
-                eprintln!("Error: {e}");
+                eprintln!("Error: {e:#}");
                 return ExitCode::from(2);
             }
         }
@@ -319,7 +319,7 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
             }
         }
         Err(e) => {
-            eprintln!("Error: {e}");
+            eprintln!("Error: {e:#}");
             ExitCode::from(2)
         }
     }
