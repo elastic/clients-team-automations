@@ -5,10 +5,11 @@ use std::path::Path;
 
 use miette::{LabeledSpan, NamedSource, SourceSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
     Human,
     Json,
+    #[value(name = "github-actions")]
     GithubActions,
 }
 
@@ -18,21 +19,6 @@ impl fmt::Display for OutputFormat {
             OutputFormat::Human => write!(f, "human"),
             OutputFormat::Json => write!(f, "json"),
             OutputFormat::GithubActions => write!(f, "github-actions"),
-        }
-    }
-}
-
-impl std::str::FromStr for OutputFormat {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "human" => Ok(OutputFormat::Human),
-            "json" => Ok(OutputFormat::Json),
-            "github-actions" => Ok(OutputFormat::GithubActions),
-            _ => Err(format!(
-                "unknown format '{s}', expected: human, json, github-actions"
-            )),
         }
     }
 }

@@ -15,7 +15,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum Scope {
     All,
     Changed,
@@ -26,18 +26,6 @@ impl std::fmt::Display for Scope {
         match self {
             Scope::All => write!(f, "all"),
             Scope::Changed => write!(f, "changed"),
-        }
-    }
-}
-
-impl std::str::FromStr for Scope {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "all" => Ok(Scope::All),
-            "changed" => Ok(Scope::Changed),
-            _ => Err(format!("unknown scope '{s}', expected: all, changed")),
         }
     }
 }
