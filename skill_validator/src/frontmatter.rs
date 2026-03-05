@@ -7,7 +7,7 @@ pub struct Frontmatter {
     pub license: Option<String>,
     pub compatibility: Option<String>,
     pub allowed_tools: Option<String>,
-    pub metadata: BTreeMap<String, String>,
+    pub metadata: BTreeMap<String, serde_yml::Value>,
     pub raw: String,
     pub begin_line: usize,
     pub end_line: usize,
@@ -64,16 +64,15 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
                 serde_yml::Value::String(s) => s.clone(),
                 _ => format!("{k:?}"),
             };
-            let value = yaml_value_to_string(v);
 
             match key.as_str() {
-                "name" => fm.name = Some(value),
-                "description" => fm.description = Some(value),
-                "license" => fm.license = Some(value),
-                "compatibility" => fm.compatibility = Some(value),
-                "allowed-tools" | "allowed_tools" => fm.allowed_tools = Some(value),
+                "name" => fm.name = Some(yaml_value_to_string(v)),
+                "description" => fm.description = Some(yaml_value_to_string(v)),
+                "license" => fm.license = Some(yaml_value_to_string(v)),
+                "compatibility" => fm.compatibility = Some(yaml_value_to_string(v)),
+                "allowed-tools" | "allowed_tools" => fm.allowed_tools = Some(yaml_value_to_string(v)),
                 _ => {
-                    fm.metadata.insert(key, value);
+                    fm.metadata.insert(key, v.clone());
                 }
             }
         }
@@ -122,5 +121,37 @@ mod tests {
         let content = "---\nname: my-skill\nno closing";
         let result = parse_frontmatter(content);
         assert!(result.frontmatter.is_none());
+    }
+
+    #[test]
+    fn parse_nested_metadata() {
+        let content = "---\nname: my-skill\nmetadata:\n  version: 0.1.0\n  author: elastic\n---\n# Body";
+        let result = parse_frontmatter(content);
+        let fm = result.frontmatter.unwrap();
+        assert_eq!(fm.name.as_deref(), Some("my-skill"));
+
+        let meta_val = fm.metadata.get("metadata").expect("metadata key missing");
+        assert!(meta_val.is_mapping(), "metadata value should be a YAML mapping");
+
+        let map = meta_val.as_mapping().unwrap();
+        let version = map.get(serde_yml::Value::String("version".into()));
+        assert_eq!(
+            version.and_then(|v| v.as_str()),
+            Some("0.1.0"),
+        );
+        let author = map.get(serde_yml::Value::String("author".into()));
+        assert_eq!(
+            author.and_then(|v| v.as_str()),
+            Some("elastic"),
+        );
+    }
+
+    #[test]
+    fn parse_scalar_metadata_preserved() {
+        let content = "---\nname: my-skill\ncustom_key: hello\n---\n# Body";
+        let result = parse_frontmatter(content);
+        let fm = result.frontmatter.unwrap();
+        let val = fm.metadata.get("custom_key").expect("custom_key missing");
+        assert_eq!(val.as_str(), Some("hello"));
     }
 }

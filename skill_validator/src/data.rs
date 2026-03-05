@@ -23,6 +23,7 @@ pub struct SpanData {
 pub struct MetadataEntryData {
     pub key: String,
     pub value: String,
+    pub children: Vec<Arc<MetadataEntryData>>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +95,47 @@ pub struct SkillsData {
     pub skills: Vec<Arc<SkillData>>,
     pub group_folders: Vec<Arc<GroupFolderData>>,
     pub discovered_files: Vec<Arc<DiscoveredSkillFileData>>,
+}
+
+// ---------------------------------------------------------------------------
+// YAML → MetadataEntryData conversion
+// ---------------------------------------------------------------------------
+
+fn yaml_value_to_string(v: &serde_yml::Value) -> String {
+    match v {
+        serde_yml::Value::String(s) => s.clone(),
+        serde_yml::Value::Bool(b) => b.to_string(),
+        serde_yml::Value::Number(n) => n.to_string(),
+        serde_yml::Value::Null => String::new(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn yaml_value_to_metadata(key: String, value: &serde_yml::Value) -> MetadataEntryData {
+    match value {
+        serde_yml::Value::Mapping(map) => {
+            let children: Vec<Arc<MetadataEntryData>> = map
+                .iter()
+                .map(|(k, v)| {
+                    let child_key = match k {
+                        serde_yml::Value::String(s) => s.clone(),
+                        other => format!("{other:?}"),
+                    };
+                    Arc::new(yaml_value_to_metadata(child_key, v))
+                })
+                .collect();
+            MetadataEntryData {
+                key,
+                value: yaml_value_to_string(value),
+                children,
+            }
+        }
+        _ => MetadataEntryData {
+            key,
+            value: yaml_value_to_string(value),
+            children: vec![],
+        },
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,12 +247,7 @@ pub fn load_skills_data(
                         let entries: Vec<Arc<MetadataEntryData>> = fm
                             .metadata
                             .iter()
-                            .map(|(k, v)| {
-                                Arc::new(MetadataEntryData {
-                                    key: k.clone(),
-                                    value: v.clone(),
-                                })
-                            })
+                            .map(|(k, v)| Arc::new(yaml_value_to_metadata(k.clone(), v)))
                             .collect();
                         let span = Arc::new(SpanData {
                             filename: rel_path.clone(),
@@ -389,4 +426,51 @@ fn scan_subdirs(skill_dir: &Path, repo_root: &Path, config: &Config) -> Vec<Arc<
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn yaml_scalar_produces_leaf_entry() {
+        let val = serde_yml::Value::String("0.1.0".into());
+        let entry = yaml_value_to_metadata("version".into(), &val);
+        assert_eq!(entry.key, "version");
+        assert_eq!(entry.value, "0.1.0");
+        assert!(entry.children.is_empty());
+    }
+
+    #[test]
+    fn yaml_mapping_produces_children() {
+        let yaml: serde_yml::Value = serde_yml::from_str("version: 0.1.0\nauthor: elastic").unwrap();
+        let entry = yaml_value_to_metadata("metadata".into(), &yaml);
+        assert_eq!(entry.key, "metadata");
+        assert_eq!(entry.children.len(), 2);
+
+        let version_child = entry.children.iter().find(|c| c.key == "version").unwrap();
+        assert_eq!(version_child.value, "0.1.0");
+        assert!(version_child.children.is_empty());
+
+        let author_child = entry.children.iter().find(|c| c.key == "author").unwrap();
+        assert_eq!(author_child.value, "elastic");
+        assert!(author_child.children.is_empty());
+    }
+
+    #[test]
+    fn yaml_deeply_nested_mapping() {
+        let yaml: serde_yml::Value =
+            serde_yml::from_str("outer:\n  inner: deep_value").unwrap();
+        let entry = yaml_value_to_metadata("root".into(), &yaml);
+        assert_eq!(entry.children.len(), 1);
+
+        let outer = &entry.children[0];
+        assert_eq!(outer.key, "outer");
+        assert_eq!(outer.children.len(), 1);
+
+        let inner = &outer.children[0];
+        assert_eq!(inner.key, "inner");
+        assert_eq!(inner.value, "deep_value");
+        assert!(inner.children.is_empty());
+    }
 }
