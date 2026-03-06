@@ -259,3 +259,35 @@ skill_body_too_long = "Deny"
         Some(&LintLevel::Deny)
     );
 }
+
+#[test]
+fn duplicate_lint_id_returns_error() {
+    let root = fixture_path("custom_lints_collision");
+    let skills_dir = root.join("skills");
+    let config = Config {
+        custom_lint_dirs: vec![root.join("collision-lints")],
+        ..Config::default()
+    };
+    let all_lints = query::load_builtin_lints();
+    let overrides = LintLevelOverrides::default();
+
+    let result = check::run_all_lints_with_root(
+        &skills_dir,
+        &root,
+        &config,
+        &all_lints,
+        &overrides,
+        &check::LintRunOptions::default(),
+    );
+
+    let err = result.expect_err("expected an error due to duplicate lint id");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("duplicate lint id"),
+        "error message should mention duplicate lint ids, got: {msg}"
+    );
+    assert!(
+        msg.contains("skill_missing_name"),
+        "error message should name the colliding id, got: {msg}"
+    );
+}

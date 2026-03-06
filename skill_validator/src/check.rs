@@ -74,6 +74,20 @@ pub fn run_all_lints_with_root(
     let mut all_lints: Vec<&SkillLint> = builtin_lints.iter().collect();
     all_lints.extend(custom_lints.iter());
 
+    let mut seen_ids: HashSet<&str> = HashSet::new();
+    let mut duplicates: Vec<String> = Vec::new();
+    for lint in &all_lints {
+        if !seen_ids.insert(&lint.id) {
+            duplicates.push(lint.id.clone());
+        }
+    }
+    if !duplicates.is_empty() {
+        anyhow::bail!(
+            "duplicate lint id(s) found: {}. Custom lints must not reuse built-in lint ids.",
+            duplicates.join(", ")
+        );
+    }
+
     // Filter to requested lints if specified
     if !opts.filter_ids.is_empty() {
         all_lints.retain(|l| opts.filter_ids.contains(&l.id));
