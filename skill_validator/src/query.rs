@@ -62,12 +62,6 @@ impl SkillLint {
     }
 }
 
-/// Returns the path to the built-in lint `.ron` files shipped in this repo.
-/// Only meaningful on the build machine; intended for use in tests.
-pub fn builtin_lint_dir() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lints")
-}
-
 pub fn load_lints(dirs: &[std::path::PathBuf]) -> Vec<SkillLint> {
     let mut lints = Vec::new();
     for dir in dirs {
