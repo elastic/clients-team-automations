@@ -190,9 +190,13 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
         args.format.clone()
     };
 
-    let all_lints = query::load_builtin_lints();
+    let cfg = config::Config::load(&args.config);
+    let all_lints = query::load_lints(&cfg.custom_lint_dirs);
 
     if args.list_lints {
+        if all_lints.is_empty() {
+            eprintln!("No lints configured. Add lint directories to custom_lint_dirs in your .skill-validator.toml.");
+        }
         for lint in &all_lints {
             println!(
                 "{:<45} [{}] {}",
@@ -229,7 +233,6 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let cfg = config::Config::load(&args.config);
     let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
 
     let scope_filter = if args.scope == Scope::Changed {

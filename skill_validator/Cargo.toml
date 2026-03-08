@@ -1,6 +1,6 @@
 [package]
 name = "skill-validator"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.77"
 description = "A Trustfall-powered linting tool for validating Agent Skills repositories"

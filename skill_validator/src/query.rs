@@ -62,41 +62,13 @@ impl SkillLint {
     }
 }
 
-macro_rules! include_lint {
-    ($file:expr) => {{
-        let ron_str = include_str!(concat!("lints/", $file));
-        ron::from_str::<SkillLint>(ron_str)
-            .unwrap_or_else(|e| panic!("failed to parse lint {}: {e}", $file))
-    }};
+/// Returns the path to the built-in lint `.ron` files shipped in this repo.
+/// Only meaningful on the build machine; intended for use in tests.
+pub fn builtin_lint_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lints")
 }
 
-pub fn load_builtin_lints() -> Vec<SkillLint> {
-    vec![
-        // Deny-level
-        include_lint!("skill_flat_layout.ron"),
-        include_lint!("skill_missing_frontmatter.ron"),
-        include_lint!("skill_missing_name.ron"),
-        include_lint!("skill_missing_description.ron"),
-        include_lint!("skill_name_missing_group_prefix.ron"),
-        include_lint!("skill_name_missing_folder_suffix.ron"),
-        include_lint!("skill_name_invalid_format.ron"),
-        include_lint!("skill_duplicate_name.ron"),
-        include_lint!("skill_mixed_script_languages.ron"),
-        include_lint!("skill_name_consecutive_hyphens.ron"),
-        include_lint!("skill_name_too_long.ron"),
-        include_lint!("skill_description_too_long.ron"),
-        // Warn-level
-        include_lint!("skill_description_too_short.ron"),
-        include_lint!("skill_body_too_long.ron"),
-        include_lint!("skill_missing_examples_section.ron"),
-        include_lint!("skill_missing_guidelines_section.ron"),
-        // Allow-level (opt-in)
-        include_lint!("skill_has_no_scripts.ron"),
-        include_lint!("skill_has_no_references.ron"),
-    ]
-}
-
-pub fn load_custom_lints(dirs: &[std::path::PathBuf]) -> Vec<SkillLint> {
+pub fn load_lints(dirs: &[std::path::PathBuf]) -> Vec<SkillLint> {
     let mut lints = Vec::new();
     for dir in dirs {
         if let Ok(entries) = std::fs::read_dir(dir) {
