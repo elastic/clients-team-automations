@@ -5,6 +5,10 @@ use skill_validator::config::Config;
 use skill_validator::query::{self, LintLevel, LintLevelOverrides};
 use skill_validator::report;
 
+fn builtin_lint_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lints")
+}
+
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("test_crates")
@@ -15,7 +19,7 @@ fn run_lints_on(fixture: &str, filter_lints: &[&str]) -> check::LintReport {
     let root = fixture_path(fixture);
     let skills_dir = root.join("skills");
     let config = Config::default();
-    let all_lints = query::load_builtin_lints();
+    let all_lints = query::load_lints(&[builtin_lint_dir()]);
     let overrides = LintLevelOverrides::default();
     let filter: Vec<String> = filter_lints.iter().map(|s| s.to_string()).collect();
 
@@ -202,7 +206,7 @@ fn allow_level_no_scripts_fires_when_promoted() {
     let root = fixture_path("no_scripts");
     let skills_dir = root.join("skills");
     let config = Config::default();
-    let all_lints = query::load_builtin_lints();
+    let all_lints = query::load_lints(&[builtin_lint_dir()]);
     let overrides = query::LintLevelOverrides {
         warn: ["skill_has_no_scripts".to_string()].into_iter().collect(),
         ..query::LintLevelOverrides::default()
@@ -238,7 +242,7 @@ fn allow_level_no_references_fires_when_promoted() {
     let root = fixture_path("no_references");
     let skills_dir = root.join("skills");
     let config = Config::default();
-    let all_lints = query::load_builtin_lints();
+    let all_lints = query::load_lints(&[builtin_lint_dir()]);
     let overrides = query::LintLevelOverrides {
         warn: ["skill_has_no_references".to_string()].into_iter().collect(),
         ..query::LintLevelOverrides::default()

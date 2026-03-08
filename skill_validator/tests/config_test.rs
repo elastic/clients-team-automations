@@ -5,6 +5,10 @@ use skill_validator::check;
 use skill_validator::config::Config;
 use skill_validator::query::{self, LintLevel, LintLevelOverrides};
 
+fn builtin_lint_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lints")
+}
+
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("test_crates")
@@ -18,7 +22,7 @@ fn run_lints_with_config(
 ) -> check::LintReport {
     let root = fixture_path(fixture);
     let skills_dir = root.join("skills");
-    let all_lints = query::load_builtin_lints();
+    let all_lints = query::load_lints(&[builtin_lint_dir()]);
     let overrides = LintLevelOverrides::default();
     let filter: Vec<String> = filter_lints.iter().map(|s| s.to_string()).collect();
 
@@ -44,7 +48,7 @@ fn run_lints_with_overrides(
 ) -> check::LintReport {
     let root = fixture_path(fixture);
     let skills_dir = root.join("skills");
-    let all_lints = query::load_builtin_lints();
+    let all_lints = query::load_lints(&[builtin_lint_dir()]);
     let filter: Vec<String> = filter_lints.iter().map(|s| s.to_string()).collect();
 
     check::run_all_lints_with_root(
@@ -173,11 +177,8 @@ fn custom_data_extensions_changes_classification() {
 fn custom_lint_dirs_loads_and_runs_custom_lints() {
     let root = fixture_path("custom_lints");
     let skills_dir = root.join("skills");
-    let config = Config {
-        custom_lint_dirs: vec![root.join("my-lints")],
-        ..Config::default()
-    };
-    let all_lints = query::load_builtin_lints();
+    let config = Config::default();
+    let all_lints = query::load_lints(&[root.join("my-lints")]);
     let overrides = LintLevelOverrides::default();
 
     let filter = vec![String::from("skill_must_have_license")];
@@ -203,11 +204,8 @@ fn custom_lint_dirs_fires_on_missing_license() {
     let root = fixture_path("missing_name");
     let skills_dir = root.join("skills");
     let custom_lint_dir = fixture_path("custom_lints").join("my-lints");
-    let config = Config {
-        custom_lint_dirs: vec![custom_lint_dir],
-        ..Config::default()
-    };
-    let all_lints = query::load_builtin_lints();
+    let config = Config::default();
+    let all_lints = query::load_lints(&[custom_lint_dir]);
     let overrides = LintLevelOverrides::default();
 
     let filter = vec![String::from("skill_must_have_license")];
@@ -264,11 +262,8 @@ skill_body_too_long = "Deny"
 fn duplicate_lint_id_returns_error() {
     let root = fixture_path("custom_lints_collision");
     let skills_dir = root.join("skills");
-    let config = Config {
-        custom_lint_dirs: vec![root.join("collision-lints")],
-        ..Config::default()
-    };
-    let all_lints = query::load_builtin_lints();
+    let config = Config::default();
+    let all_lints = query::load_lints(&[builtin_lint_dir(), root.join("collision-lints")]);
     let overrides = LintLevelOverrides::default();
 
     let result = check::run_all_lints_with_root(

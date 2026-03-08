@@ -48,19 +48,19 @@ pub struct LintRunOptions<'a> {
 pub fn run_all_lints(
     skills_dir: &Path,
     config: &Config,
-    builtin_lints: &[SkillLint],
+    lints: &[SkillLint],
     overrides: &LintLevelOverrides,
     opts: &LintRunOptions<'_>,
 ) -> anyhow::Result<LintReport> {
     let repo_root = std::env::current_dir().context("cannot get current directory")?;
-    run_all_lints_with_root(skills_dir, &repo_root, config, builtin_lints, overrides, opts)
+    run_all_lints_with_root(skills_dir, &repo_root, config, lints, overrides, opts)
 }
 
 pub fn run_all_lints_with_root(
     skills_dir: &Path,
     repo_root: &Path,
     config: &Config,
-    builtin_lints: &[SkillLint],
+    lints: &[SkillLint],
     overrides: &LintLevelOverrides,
     opts: &LintRunOptions<'_>,
 ) -> anyhow::Result<LintReport> {
@@ -70,9 +70,7 @@ pub fn run_all_lints_with_root(
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 
-    let custom_lints = crate::query::load_custom_lints(&config.custom_lint_dirs);
-    let mut all_lints: Vec<&SkillLint> = builtin_lints.iter().collect();
-    all_lints.extend(custom_lints.iter());
+    let mut all_lints: Vec<&SkillLint> = lints.iter().collect();
 
     let mut seen_ids: HashSet<&str> = HashSet::new();
     let mut duplicates: Vec<String> = Vec::new();
@@ -83,7 +81,7 @@ pub fn run_all_lints_with_root(
     }
     if !duplicates.is_empty() {
         anyhow::bail!(
-            "duplicate lint id(s) found: {}. Custom lints must not reuse built-in lint ids.",
+            "duplicate lint id(s) found: {}. Each lint must have a unique id.",
             duplicates.join(", ")
         );
     }
