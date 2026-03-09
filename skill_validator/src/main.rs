@@ -5,6 +5,7 @@ mod convert;
 mod data;
 mod frontmatter;
 mod git;
+mod github;
 mod markdown;
 mod query;
 mod query_mode;

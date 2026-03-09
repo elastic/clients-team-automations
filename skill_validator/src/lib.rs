@@ -5,6 +5,7 @@ pub mod convert;
 pub mod data;
 pub mod frontmatter;
 pub mod git;
+pub mod github;
 pub mod markdown;
 pub mod query;
 pub mod query_mode;

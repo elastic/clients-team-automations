@@ -8,6 +8,10 @@ fn default_skills_dir() -> PathBuf {
     PathBuf::from("skills")
 }
 
+fn default_github_org() -> String {
+    "elastic".to_string()
+}
+
 fn default_data_extensions() -> Vec<String> {
     vec![
         "txt", "md", "json", "yaml", "yml", "cfg", "ini", "toml", "env", "csv",
@@ -31,6 +35,9 @@ pub struct Config {
 
     #[serde(default = "default_data_extensions")]
     pub data_extensions: Vec<String>,
+
+    #[serde(default = "default_github_org")]
+    pub github_org: String,
 }
 
 impl Default for Config {
@@ -40,6 +47,7 @@ impl Default for Config {
             lints: BTreeMap::new(),
             custom_lint_dirs: Vec::new(),
             data_extensions: default_data_extensions(),
+            github_org: default_github_org(),
         }
     }
 }

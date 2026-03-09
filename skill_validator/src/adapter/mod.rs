@@ -60,6 +60,10 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .collect();
                 Box::new(files.into_iter())
             }
+            "GitHubOrg" => {
+                let org = self.data.github_org.clone();
+                Box::new(std::iter::once(Vertex::GitHubOrg(org)))
+            }
             _ => unreachable!("unknown starting edge: {edge_name}"),
         }
     }
@@ -272,6 +276,32 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                 v.as_span().unwrap().end_line.into()
             }),
 
+            // --- GitHubOrg properties ---
+            ("GitHubOrg", "name") => resolve_property_with(contexts, |v| {
+                v.as_git_hub_org().unwrap().name.clone().into()
+            }),
+            ("GitHubOrg", "teams_loaded") => resolve_property_with(contexts, |v| {
+                v.as_git_hub_org().unwrap().teams_loaded.into()
+            }),
+            ("GitHubOrg", "team_count") => resolve_property_with(contexts, |v| {
+                FieldValue::Int64(v.as_git_hub_org().unwrap().teams.len() as i64)
+            }),
+
+            // --- GitHubTeam properties ---
+            ("GitHubTeam", "slug") => resolve_property_with(contexts, |v| {
+                v.as_git_hub_team().unwrap().slug.clone().into()
+            }),
+            ("GitHubTeam", "name") => resolve_property_with(contexts, |v| {
+                v.as_git_hub_team().unwrap().name.clone().into()
+            }),
+            ("GitHubTeam", "description") => resolve_property_with(contexts, |v| {
+                let t = v.as_git_hub_team().unwrap();
+                t.description
+                    .as_ref()
+                    .map(|d| FieldValue::from(d.as_str()))
+                    .unwrap_or(FieldValue::Null)
+            }),
+
             _ => unreachable!("unknown property: {type_name}.{property_name}"),
         }
     }
@@ -395,6 +425,23 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .files
                     .iter()
                     .map(|f| Vertex::SubDirFile(f.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
+
+            ("Skill", "github_org") => {
+                let github_org = data.github_org.clone();
+                resolve_neighbors_with(contexts, move |_v| {
+                    Box::new(std::iter::once(Vertex::GitHubOrg(github_org.clone())))
+                })
+            }
+
+            ("GitHubOrg", "team") => resolve_neighbors_with(contexts, move |v| {
+                let org = v.as_git_hub_org().unwrap();
+                let items: Vec<Vertex> = org
+                    .teams
+                    .iter()
+                    .map(|t| Vertex::GitHubTeam(t.clone()))
                     .collect();
                 Box::new(items.into_iter())
             }),

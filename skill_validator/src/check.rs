@@ -9,6 +9,7 @@ use crate::adapter::SkillsAdapter;
 use crate::config::Config;
 use crate::convert;
 use crate::data;
+use crate::github;
 use crate::query::{LintLevel, LintLevelOverrides, SkillLint};
 use crate::schema;
 
@@ -65,7 +66,8 @@ pub fn run_all_lints_with_root(
     opts: &LintRunOptions<'_>,
 ) -> anyhow::Result<LintReport> {
 
-    let skills_data = data::load_skills_data(skills_dir, repo_root, config, opts.scope_filter);
+    let mut skills_data = data::load_skills_data(skills_dir, repo_root, config, opts.scope_filter);
+    skills_data.github_org = Arc::new(github::fetch_org_data(&config.github_org));
     let skills_checked = skills_data.skills.len();
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();

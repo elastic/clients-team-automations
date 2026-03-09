@@ -11,6 +11,7 @@ use crate::adapter::SkillsAdapter;
 use crate::config::Config;
 use crate::convert;
 use crate::data;
+use crate::github;
 use crate::schema;
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -51,7 +52,8 @@ pub fn run_query(
         .collect();
 
     let repo_root = std::env::current_dir().context("cannot get current directory")?;
-    let skills_data = data::load_skills_data(skills_dir, &repo_root, config, None);
+    let mut skills_data = data::load_skills_data(skills_dir, &repo_root, config, None);
+    skills_data.github_org = std::sync::Arc::new(github::fetch_org_data(&config.github_org));
     let adapter = SkillsAdapter::new(skills_data);
     let schema = schema::schema();
 
