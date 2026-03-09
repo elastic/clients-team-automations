@@ -91,10 +91,25 @@ pub struct DiscoveredSkillFileData {
 }
 
 #[derive(Debug, Clone)]
+pub struct GitHubTeamData {
+    pub slug: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GitHubOrgData {
+    pub name: String,
+    pub teams_loaded: bool,
+    pub teams: Vec<Arc<GitHubTeamData>>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SkillsData {
     pub skills: Vec<Arc<SkillData>>,
     pub group_folders: Vec<Arc<GroupFolderData>>,
     pub discovered_files: Vec<Arc<DiscoveredSkillFileData>>,
+    pub github_org: Arc<GitHubOrgData>,
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +179,11 @@ pub fn load_skills_data(
             skills,
             group_folders: Vec::new(),
             discovered_files,
+            github_org: Arc::new(GitHubOrgData {
+                name: String::new(),
+                teams_loaded: false,
+                teams: Vec::new(),
+            }),
         };
     }
 
@@ -349,6 +369,11 @@ pub fn load_skills_data(
         skills,
         group_folders,
         discovered_files,
+        github_org: Arc::new(GitHubOrgData {
+            name: String::new(),
+            teams_loaded: false,
+            teams: Vec::new(),
+        }),
     }
 }
 

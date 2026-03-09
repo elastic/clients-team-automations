@@ -22,6 +22,12 @@ type RootQuery {
     Lints filter on `depth` to detect structural violations.
     """
     DiscoveredSkillFile: [DiscoveredSkillFile!]!
+
+    """
+    The configured GitHub organization. Provides access to org teams for validation.
+    Requires a GitHub token (GITHUB_TOKEN or GH_TOKEN env var).
+    """
+    GitHubOrg: GitHubOrg!
 }
 
 # ---------------------------------------------------------------------------
@@ -116,6 +122,9 @@ type Skill {
 
     """Span of the frontmatter block within SKILL.md."""
     frontmatter_span: Span
+
+    """The configured GitHub organization (for team validation, etc.)."""
+    github_org: GitHubOrg!
 }
 
 """
@@ -260,6 +269,39 @@ type MetadataEntry {
 
     """Child entries when the value is a YAML mapping (empty otherwise)."""
     children: [MetadataEntry!]!
+}
+
+"""
+The GitHub organization. Contains team data fetched from the GitHub API.
+Check `teams_loaded` before relying on team data — it is false when no
+GitHub token was available.
+"""
+type GitHubOrg {
+    """The organization name (e.g. "elastic")."""
+    name: String!
+
+    """Whether teams were successfully loaded from the GitHub API."""
+    teams_loaded: Boolean!
+
+    """Number of teams loaded (0 when teams_loaded is false)."""
+    team_count: Int!
+
+    """All teams in the organization."""
+    team: [GitHubTeam!]!
+}
+
+"""
+A team within a GitHub organization.
+"""
+type GitHubTeam {
+    """The team's URL slug (e.g. "clients-team")."""
+    slug: String!
+
+    """The team's display name."""
+    name: String!
+
+    """The team's description, if set."""
+    description: String
 }
 
 """

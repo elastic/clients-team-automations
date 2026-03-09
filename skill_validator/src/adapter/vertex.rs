@@ -3,8 +3,8 @@ use std::sync::Arc;
 use trustfall_derive::TrustfallEnumVertex;
 
 use crate::data::{
-    DiscoveredSkillFileData, GroupFolderData, MetadataEntryData, SkillData, SpanData, SubDirData,
-    SubDirFileData,
+    DiscoveredSkillFileData, GitHubOrgData, GitHubTeamData, GroupFolderData, MetadataEntryData,
+    SkillData, SpanData, SubDirData, SubDirFileData,
 };
 use crate::markdown::{CodeBlockData, SectionData};
 
@@ -19,4 +19,6 @@ pub enum Vertex {
     SubDirFile(Arc<SubDirFileData>),
     MetadataEntry(Arc<MetadataEntryData>),
     Span(Arc<SpanData>),
+    GitHubOrg(Arc<GitHubOrgData>),
+    GitHubTeam(Arc<GitHubTeamData>),
 }
