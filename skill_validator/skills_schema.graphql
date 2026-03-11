@@ -110,6 +110,9 @@ type Skill {
     """All subdirectories of this skill (scripts/, references/, assets/, etc.)."""
     sub_dir: [SubDir!]!
 
+    """Local path references found in the SKILL.md body (markdown links and images)."""
+    referenced_path: [ReferencedPath!]!
+
     """
     All other skills in the repository (excluding this one).
     Enables cross-skill comparisons (duplicate names, overlapping descriptions, etc.)
@@ -253,6 +256,45 @@ type SubDirFile {
     Classification is driven by the `data_extensions` list in .skill-validator.toml.
     """
     is_data_file: Boolean!
+
+    """
+    The text content of the file. Null if the file is binary, non-UTF-8, or
+    exceeds the size limit (1 MB).
+    """
+    content: String
+
+    """Local path references extracted from the file (imports, source commands, etc.)."""
+    referenced_path: [ReferencedPath!]!
+}
+
+# ---------------------------------------------------------------------------
+# Reference tracking
+# ---------------------------------------------------------------------------
+
+"""
+A local path reference found in a skill file (SKILL.md link, JS import, etc.).
+Used to detect cross-skill dependencies and references to paths outside a
+skill's own directory.
+"""
+type ReferencedPath {
+    """The raw path string as it appears in the source (e.g. '../../shared/es-client.js')."""
+    raw_path: String!
+
+    """
+    The path normalized to be repo-root-relative (e.g. 'skills/shared/es-client.js').
+    Null if the path could not be resolved (e.g. a bare package name that passed
+    through filtering).
+    """
+    resolved_path: String
+
+    """
+    The kind of reference. One of: markdown_link, markdown_image, js_import,
+    js_require, js_dynamic_import, python_relative_import, shell_source.
+    """
+    kind: String!
+
+    """1-based line number where the reference appears in the source file."""
+    line_number: Int!
 }
 
 # ---------------------------------------------------------------------------

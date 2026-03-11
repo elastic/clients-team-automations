@@ -19,11 +19,19 @@ pub struct CodeBlockData {
 }
 
 #[derive(Debug, Clone)]
+pub struct MarkdownLinkData {
+    pub dest_url: String,
+    pub is_image: bool,
+    pub line_number: i64,
+}
+
+#[derive(Debug, Clone)]
 pub struct MarkdownStructure {
     pub sections: Vec<SectionData>,
     pub has_title_heading: bool,
     pub title_heading: Option<String>,
     pub body_line_count: i64,
+    pub links: Vec<MarkdownLinkData>,
 }
 
 fn heading_level_to_i64(level: HeadingLevel) -> i64 {
@@ -74,6 +82,8 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
     // (everything after the heading line up to the next heading).
     let mut section_content_start: Option<usize> = None;
     let mut section_content_end: usize = 0;
+
+    let mut links: Vec<MarkdownLinkData> = Vec::new();
 
     let parser = Parser::new_ext(body, Options::empty());
 
@@ -171,6 +181,31 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
                 section_content_end = range.end;
             }
 
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                let line =
+                    (body_start_line + byte_offset_to_line(&line_index, range.start) - 1) as i64;
+                links.push(MarkdownLinkData {
+                    dest_url: dest_url.to_string(),
+                    is_image: false,
+                    line_number: line,
+                });
+                if !sections.is_empty() || section_content_start.is_some() {
+                    section_content_end = range.end;
+                }
+            }
+            Event::Start(Tag::Image { dest_url, .. }) => {
+                let line =
+                    (body_start_line + byte_offset_to_line(&line_index, range.start) - 1) as i64;
+                links.push(MarkdownLinkData {
+                    dest_url: dest_url.to_string(),
+                    is_image: true,
+                    line_number: line,
+                });
+                if !sections.is_empty() || section_content_start.is_some() {
+                    section_content_end = range.end;
+                }
+            }
+
             _ => {
                 if !sections.is_empty() || section_content_start.is_some() {
                     section_content_end = range.end;
@@ -193,6 +228,7 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
         has_title_heading,
         title_heading,
         body_line_count,
+        links,
     }
 }
 
@@ -245,5 +281,32 @@ mod tests {
         let body = "## Code\n```\nsome code\n```\n";
         let result = parse_markdown(body, 1);
         assert!(!result.sections[0].code_blocks[0].has_language_tag);
+    }
+
+    #[test]
+    fn parse_links() {
+        let body = "## Refs\nSee [guide](../shared/guide.md) and [site](https://example.com).";
+        let result = parse_markdown(body, 5);
+        assert_eq!(result.links.len(), 2);
+        assert_eq!(result.links[0].dest_url, "../shared/guide.md");
+        assert!(!result.links[0].is_image);
+        assert_eq!(result.links[1].dest_url, "https://example.com");
+        assert!(!result.links[1].is_image);
+    }
+
+    #[test]
+    fn parse_image_link() {
+        let body = "## Assets\n![diagram](./assets/flow.png)";
+        let result = parse_markdown(body, 1);
+        assert_eq!(result.links.len(), 1);
+        assert_eq!(result.links[0].dest_url, "./assets/flow.png");
+        assert!(result.links[0].is_image);
+    }
+
+    #[test]
+    fn no_links_in_empty_body() {
+        let body = "## Empty\nNo links here.";
+        let result = parse_markdown(body, 1);
+        assert!(result.links.is_empty());
     }
 }

@@ -9,6 +9,7 @@ mod github;
 mod markdown;
 mod query;
 mod query_mode;
+mod references;
 mod report;
 mod schema;
 

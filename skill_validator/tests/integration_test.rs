@@ -1,9 +1,15 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use skill_validator::adapter::SkillsAdapter;
 use skill_validator::check;
 use skill_validator::config::Config;
+use skill_validator::data;
 use skill_validator::query::{self, LintLevel, LintLevelOverrides};
 use skill_validator::report;
+use skill_validator::schema;
+use trustfall::{execute_query, FieldValue};
 
 fn builtin_lint_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lints")
@@ -263,4 +269,127 @@ fn allow_level_no_references_fires_when_promoted() {
     assert!(report.warnings > 0, "no_references should warn when promoted via --warn");
     assert!(report.findings.iter().any(|f| f.lint_id == "skill_has_no_references"));
     insta::assert_snapshot!("no_references_promoted", snapshot_report(&report));
+}
+
+// ---- Referenced paths (query-based) ----
+
+fn query_fixture(fixture: &str, query: &str) -> Vec<BTreeMap<Arc<str>, FieldValue>> {
+    let root = fixture_path(fixture);
+    let skills_dir = root.join("skills");
+    let config = Config::default();
+    let skills_data = data::load_skills_data(&skills_dir, &root, &config, None);
+    let adapter = SkillsAdapter::new(skills_data);
+    let schema = schema::schema();
+    let args: BTreeMap<String, FieldValue> = BTreeMap::new();
+    execute_query(&schema, Arc::new(adapter), query, args)
+        .expect("query should succeed")
+        .collect()
+}
+
+#[test]
+fn skill_referenced_paths_from_markdown() {
+    let rows = query_fixture(
+        "cross_references",
+        r#"{
+            Skill {
+                skill_file_path @output
+                referenced_path {
+                    raw_path @output
+                    resolved_path @output
+                    kind @output
+                    line_number @output
+                }
+            }
+        }"#,
+    );
+    assert!(
+        !rows.is_empty(),
+        "expected referenced_path results from SKILL.md links"
+    );
+    let raw_paths: Vec<String> = rows
+        .iter()
+        .filter_map(|r| {
+            let key: Arc<str> = Arc::from("raw_path");
+            match r.get(&key)? {
+                FieldValue::String(s) => Some(s.to_string()),
+                _ => None,
+            }
+        })
+        .collect();
+    assert!(
+        raw_paths.contains(&"../../shared/shared-skill/guide.md".to_string()),
+        "should find the cross-skill markdown link"
+    );
+    assert!(
+        raw_paths.contains(&"../../shared/shared-skill/assets/diagram.png".to_string()),
+        "should find the cross-skill image link"
+    );
+    assert!(
+        raw_paths.contains(&"./scripts/helper.js".to_string()),
+        "should find the local-skill markdown link"
+    );
+    assert!(
+        !raw_paths.iter().any(|p| p.starts_with("https://")),
+        "should not include https URLs"
+    );
+}
+
+#[test]
+fn subdir_file_referenced_paths_from_js() {
+    let rows = query_fixture(
+        "cross_references",
+        r#"{
+            Skill {
+                sub_dir {
+                    file {
+                        name @output(name: "file_name")
+                        referenced_path {
+                            raw_path @output
+                            resolved_path @output
+                            kind @output
+                        }
+                    }
+                }
+            }
+        }"#,
+    );
+    assert!(
+        !rows.is_empty(),
+        "expected referenced_path results from JS imports"
+    );
+    let import_rows: Vec<_> = rows
+        .iter()
+        .filter(|r| {
+            let key: Arc<str> = Arc::from("kind");
+            matches!(r.get(&key), Some(FieldValue::String(s)) if s.as_ref() == "js_import")
+        })
+        .collect();
+    assert!(
+        import_rows.len() >= 2,
+        "should have at least 2 js_import references, got {}",
+        import_rows.len()
+    );
+}
+
+#[test]
+fn subdir_file_content_readable() {
+    let rows = query_fixture(
+        "cross_references",
+        r#"{
+            Skill {
+                sub_dir {
+                    file {
+                        name @output(name: "file_name")
+                        content @output
+                    }
+                }
+            }
+        }"#,
+    );
+    assert!(!rows.is_empty(), "should have files with content");
+    let has_content = rows.iter().any(|r| {
+        let key: Arc<str> = Arc::from("content");
+        matches!(r.get(&key), Some(FieldValue::String(s)) if !s.is_empty())
+    });
+    assert!(has_content, "at least one file should have non-empty content");
 }

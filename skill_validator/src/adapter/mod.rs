@@ -256,6 +256,13 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
             ("SubDirFile", "is_data_file") => resolve_property_with(contexts, |v| {
                 v.as_sub_dir_file().unwrap().is_data_file.into()
             }),
+            ("SubDirFile", "content") => resolve_property_with(contexts, |v| {
+                let f = v.as_sub_dir_file().unwrap();
+                f.content
+                    .as_ref()
+                    .map(|c| FieldValue::from(c.as_str()))
+                    .unwrap_or(FieldValue::Null)
+            }),
 
             // --- MetadataEntry properties ---
             ("MetadataEntry", "key") => resolve_property_with(contexts, |v| {
@@ -300,6 +307,24 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .as_ref()
                     .map(|d| FieldValue::from(d.as_str()))
                     .unwrap_or(FieldValue::Null)
+            }),
+
+            // --- ReferencedPath properties ---
+            ("ReferencedPath", "raw_path") => resolve_property_with(contexts, |v| {
+                v.as_referenced_path().unwrap().raw_path.clone().into()
+            }),
+            ("ReferencedPath", "resolved_path") => resolve_property_with(contexts, |v| {
+                let rp = v.as_referenced_path().unwrap();
+                rp.resolved_path
+                    .as_ref()
+                    .map(|p| FieldValue::from(p.as_str()))
+                    .unwrap_or(FieldValue::Null)
+            }),
+            ("ReferencedPath", "kind") => resolve_property_with(contexts, |v| {
+                v.as_referenced_path().unwrap().kind.clone().into()
+            }),
+            ("ReferencedPath", "line_number") => resolve_property_with(contexts, |v| {
+                v.as_referenced_path().unwrap().line_number.into()
             }),
 
             _ => unreachable!("unknown property: {type_name}.{property_name}"),
@@ -348,6 +373,15 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .sub_dirs
                     .iter()
                     .map(|s| Vertex::SubDir(s.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
+            ("Skill", "referenced_path") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                let items: Vec<Vertex> = skill
+                    .referenced_paths
+                    .iter()
+                    .map(|rp| Vertex::ReferencedPath(rp.clone()))
                     .collect();
                 Box::new(items.into_iter())
             }),
@@ -425,6 +459,16 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .files
                     .iter()
                     .map(|f| Vertex::SubDirFile(f.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
+
+            ("SubDirFile", "referenced_path") => resolve_neighbors_with(contexts, move |v| {
+                let f = v.as_sub_dir_file().unwrap();
+                let items: Vec<Vertex> = f
+                    .referenced_paths
+                    .iter()
+                    .map(|rp| Vertex::ReferencedPath(rp.clone()))
                     .collect();
                 Box::new(items.into_iter())
             }),

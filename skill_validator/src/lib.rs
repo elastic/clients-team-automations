@@ -9,5 +9,6 @@ pub mod github;
 pub mod markdown;
 pub mod query;
 pub mod query_mode;
+pub mod references;
 pub mod report;
 pub mod schema;
