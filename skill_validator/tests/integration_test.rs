@@ -271,6 +271,47 @@ fn allow_level_no_references_fires_when_promoted() {
     insta::assert_snapshot!("no_references_promoted", snapshot_report(&report));
 }
 
+// ---- Scope filtering for DiscoveredDirectory ----
+
+/// Regression test: with `scope: changed`, directories that were NOT in the
+/// changed set should not appear in `discovered_dirs` and therefore should not
+/// trigger `skill_directory_no_skill_md` (or any other DiscoveredDirectory lint).
+#[test]
+fn scope_filter_excludes_unchanged_directories_from_discovered_dirs() {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let root = tmp.path();
+    let skills_dir = root.join("skills");
+
+    // Two directories at skill depth, neither has a SKILL.md.
+    // Only "in-scope" is in the changed set; "out-of-scope" is not.
+    for dir in &["group/in-scope", "group/out-of-scope"] {
+        let d = skills_dir.join(dir);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("helper.md"), "# helper").unwrap();
+    }
+
+    let config = Config::default();
+    let scope: std::collections::HashSet<String> =
+        ["skills/group/in-scope".to_string()].into_iter().collect();
+
+    let data = data::load_skills_data(&skills_dir, root, &config, Some(&scope));
+
+    let dir_paths: Vec<&str> = data
+        .discovered_dirs
+        .iter()
+        .map(|d| d.path.as_str())
+        .collect();
+
+    assert!(
+        dir_paths.iter().any(|p| *p == "skills/group/in-scope"),
+        "in-scope directory should be present"
+    );
+    assert!(
+        !dir_paths.iter().any(|p| *p == "skills/group/out-of-scope"),
+        "out-of-scope directory should be excluded; found: {dir_paths:?}"
+    );
+}
+
 // ---- Referenced paths (query-based) ----
 
 fn query_fixture(fixture: &str, query: &str) -> Vec<BTreeMap<Arc<str>, FieldValue>> {

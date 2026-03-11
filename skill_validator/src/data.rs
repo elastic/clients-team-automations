@@ -441,6 +441,7 @@ pub fn load_skills_data(
         repo_root,
         config,
         &skill_path_to_index,
+        scope_filter,
     );
 
     SkillsData {
@@ -464,6 +465,7 @@ fn discover_directories(
     repo_root: &Path,
     config: &Config,
     skill_path_to_index: &BTreeMap<String, usize>,
+    scope_filter: Option<&std::collections::HashSet<String>>,
 ) -> Vec<Arc<DiscoveredDirectoryData>> {
     let mut result = Vec::new();
 
@@ -484,6 +486,19 @@ fn discover_directories(
 
         if depth < 2 {
             continue;
+        }
+
+        if let Some(filter) = scope_filter {
+            let components: Vec<_> = dir_rel.components().collect();
+            let skill_rel: std::path::PathBuf = components[..2].iter().collect();
+            let skill_level_path = skills_dir_abs
+                .join(&skill_rel)
+                .strip_prefix(repo_root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| skills_dir_abs.join(&skill_rel).to_string_lossy().to_string());
+            if !filter.contains(&skill_level_path) {
+                continue;
+            }
         }
 
         let dir_name = abs_path
