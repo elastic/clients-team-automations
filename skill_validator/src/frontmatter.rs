@@ -53,8 +53,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     let yaml_value: Result<serde_yml::Value, _> = serde_yml::from_str(&raw);
 
     let mut field_lines: BTreeMap<String, usize> = BTreeMap::new();
-    for i in 1..end_idx {
-        let line = lines[i];
+    for (i, line) in lines.iter().enumerate().take(end_idx).skip(1) {
         if !line.starts_with(' ') && !line.starts_with('\t') {
             if let Some(colon_pos) = line.find(':') {
                 let key = &line[..colon_pos];
