@@ -7,6 +7,7 @@ use crate::data::{
     SkillData, SpanData, SubDirData, SubDirFileData,
 };
 use crate::markdown::{CodeBlockData, SectionData};
+use crate::references::ReferencedPathData;
 
 #[derive(Debug, Clone, TrustfallEnumVertex)]
 pub enum Vertex {
@@ -21,4 +22,5 @@ pub enum Vertex {
     Span(Arc<SpanData>),
     GitHubOrg(Arc<GitHubOrgData>),
     GitHubTeam(Arc<GitHubTeamData>),
+    ReferencedPath(Arc<ReferencedPathData>),
 }

@@ -7,6 +7,7 @@ use walkdir::WalkDir;
 use crate::config::Config;
 use crate::frontmatter;
 use crate::markdown::{self, SectionData};
+use crate::references::{self, ReferencedPathData};
 
 // ---------------------------------------------------------------------------
 // Data types (each one backs a schema type)
@@ -26,12 +27,16 @@ pub struct MetadataEntryData {
     pub children: Vec<Arc<MetadataEntryData>>,
 }
 
+const MAX_FILE_READ_BYTES: u64 = 1_048_576; // 1 MB
+
 #[derive(Debug, Clone)]
 pub struct SubDirFileData {
     pub name: String,
     pub extension: String,
     pub path: String,
     pub is_data_file: bool,
+    pub content: Option<String>,
+    pub referenced_paths: Vec<Arc<ReferencedPathData>>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +74,7 @@ pub struct SkillData {
     pub metadata: Vec<Arc<MetadataEntryData>>,
     pub sections: Vec<Arc<SectionData>>,
     pub sub_dirs: Vec<Arc<SubDirData>>,
+    pub referenced_paths: Vec<Arc<ReferencedPathData>>,
     pub span: Arc<SpanData>,
     pub frontmatter_span: Option<Arc<SpanData>>,
 }
@@ -298,6 +304,12 @@ pub fn load_skills_data(
             let sections: Vec<Arc<SectionData>> =
                 md.sections.into_iter().map(Arc::new).collect();
 
+            let skill_refs: Vec<Arc<ReferencedPathData>> =
+                references::referenced_paths_from_markdown_links(&md.links, &rel_path)
+                    .into_iter()
+                    .map(Arc::new)
+                    .collect();
+
             let sub_dirs = scan_subdirs(skill_dir, repo_root, config);
 
             let idx = skills.len();
@@ -323,6 +335,7 @@ pub fn load_skills_data(
                 metadata: metadata_entries,
                 sections,
                 sub_dirs,
+                referenced_paths: skill_refs,
                 span: span.clone(),
                 frontmatter_span: fm_span,
             }));
@@ -374,6 +387,33 @@ pub fn load_skills_data(
             teams_loaded: false,
             teams: Vec::new(),
         }),
+    }
+}
+
+/// Read a file's text content (if small enough and valid UTF-8) and extract
+/// any local path references from it.
+fn read_and_extract(
+    abs_path: &Path,
+    extension: &str,
+    rel_path: &str,
+) -> (Option<String>, Vec<Arc<ReferencedPathData>>) {
+    let meta = match std::fs::metadata(abs_path) {
+        Ok(m) => m,
+        Err(_) => return (None, Vec::new()),
+    };
+    if meta.len() > MAX_FILE_READ_BYTES {
+        return (None, Vec::new());
+    }
+    match std::fs::read_to_string(abs_path) {
+        Ok(content) => {
+            let refs: Vec<Arc<ReferencedPathData>> =
+                references::extract_file_references(&content, extension, rel_path)
+                    .into_iter()
+                    .map(Arc::new)
+                    .collect();
+            (Some(content), refs)
+        }
+        Err(_) => (None, Vec::new()),
     }
 }
 
@@ -429,11 +469,15 @@ fn scan_subdirs(skill_dir: &Path, repo_root: &Path, config: &Config) -> Vec<Arc<
                     extensions.insert(ext.clone());
                 }
 
+                let (file_content, file_refs) = read_and_extract(&file_path, &ext, &rel_file);
+
                 files.push(Arc::new(SubDirFileData {
                     name: file_name,
                     extension: ext,
                     path: rel_file,
                     is_data_file: is_data,
+                    content: file_content,
+                    referenced_paths: file_refs,
                 }));
             }
         }
