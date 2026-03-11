@@ -24,6 +24,13 @@ type RootQuery {
     DiscoveredSkillFile: [DiscoveredSkillFile!]!
 
     """
+    All directories at skill depth (>= 2 levels under skills root), regardless
+    of whether they contain a SKILL.md. Enables lints that detect directories
+    that should be skills but are missing their SKILL.md.
+    """
+    DiscoveredDirectory: [DiscoveredDirectory!]!
+
+    """
     The configured GitHub organization. Provides access to org teams for validation.
     Requires a GitHub token (GITHUB_TOKEN or GH_TOKEN env var).
     """
@@ -110,6 +117,13 @@ type Skill {
     """All subdirectories of this skill (scripts/, references/, assets/, etc.)."""
     sub_dir: [SubDir!]!
 
+    """
+    Files sitting directly in the skill folder alongside SKILL.md (not in
+    subdirectories). Useful for detecting misplaced files that should be in
+    scripts/, references/, etc.
+    """
+    root_file: [SubDirFile!]!
+
     """Local path references found in the SKILL.md body (markdown links and images)."""
     referenced_path: [ReferencedPath!]!
 
@@ -162,6 +176,39 @@ type DiscoveredSkillFile {
     depth: Int!
 
     """The resolved Skill, if this file is at a valid location and parseable."""
+    skill: Skill
+
+    span: Span!
+}
+
+"""
+A directory discovered under the skills root at depth >= 2 (the expected skill
+directory depth). Includes directories both with and without a SKILL.md, enabling
+lints that detect directories that should contain a skill definition but don't.
+"""
+type DiscoveredDirectory {
+    """The directory name (e.g. "query-authoring")."""
+    name: String!
+
+    """Relative path from the repo root."""
+    path: String!
+
+    """
+    Nesting depth under the skills root (number of path components).
+    Skill directories are typically at depth 2 (group/skill-name).
+    """
+    depth: Int!
+
+    """Whether this directory contains a SKILL.md file."""
+    has_skill_file: Boolean!
+
+    """Count of non-SKILL.md files directly in this directory."""
+    file_count: Int!
+
+    """Non-SKILL.md files directly in this directory."""
+    file: [SubDirFile!]!
+
+    """The resolved Skill, if this directory contains a valid skill."""
     skill: Skill
 
     span: Span!

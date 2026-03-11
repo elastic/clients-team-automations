@@ -74,6 +74,7 @@ pub struct SkillData {
     pub metadata: Vec<Arc<MetadataEntryData>>,
     pub sections: Vec<Arc<SectionData>>,
     pub sub_dirs: Vec<Arc<SubDirData>>,
+    pub root_files: Vec<Arc<SubDirFileData>>,
     pub referenced_paths: Vec<Arc<ReferencedPathData>>,
     pub span: Arc<SpanData>,
     pub frontmatter_span: Option<Arc<SpanData>>,
@@ -97,6 +98,18 @@ pub struct DiscoveredSkillFileData {
 }
 
 #[derive(Debug, Clone)]
+pub struct DiscoveredDirectoryData {
+    pub name: String,
+    pub path: String,
+    pub depth: i64,
+    pub has_skill_file: bool,
+    pub skill_index: Option<usize>,
+    pub file_count: i64,
+    pub files: Vec<Arc<SubDirFileData>>,
+    pub span: Arc<SpanData>,
+}
+
+#[derive(Debug, Clone)]
 pub struct GitHubTeamData {
     pub slug: String,
     pub name: String,
@@ -115,6 +128,7 @@ pub struct SkillsData {
     pub skills: Vec<Arc<SkillData>>,
     pub group_folders: Vec<Arc<GroupFolderData>>,
     pub discovered_files: Vec<Arc<DiscoveredSkillFileData>>,
+    pub discovered_dirs: Vec<Arc<DiscoveredDirectoryData>>,
     pub github_org: Arc<GitHubOrgData>,
 }
 
@@ -185,6 +199,7 @@ pub fn load_skills_data(
             skills,
             group_folders: Vec::new(),
             discovered_files,
+            discovered_dirs: Vec::new(),
             github_org: Arc::new(GitHubOrgData {
                 name: String::new(),
                 teams_loaded: false,
@@ -311,6 +326,7 @@ pub fn load_skills_data(
                     .collect();
 
             let sub_dirs = scan_subdirs(skill_dir, repo_root, config);
+            let root_files = scan_root_files(skill_dir, repo_root, config);
 
             let idx = skills.len();
             skills.push(Arc::new(SkillData {
@@ -335,6 +351,7 @@ pub fn load_skills_data(
                 metadata: metadata_entries,
                 sections,
                 sub_dirs,
+                root_files,
                 referenced_paths: skill_refs,
                 span: span.clone(),
                 frontmatter_span: fm_span,
@@ -378,16 +395,131 @@ pub fn load_skills_data(
         })
         .collect();
 
+    // Build a lookup from skill directory path to index for cross-referencing
+    let skill_path_to_index: BTreeMap<String, usize> = skills
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.path.clone(), i))
+        .collect();
+
+    let discovered_dirs = discover_directories(
+        &skills_dir_abs,
+        repo_root,
+        config,
+        &skill_path_to_index,
+    );
+
     SkillsData {
         skills,
         group_folders,
         discovered_files,
+        discovered_dirs,
         github_org: Arc::new(GitHubOrgData {
             name: String::new(),
             teams_loaded: false,
             teams: Vec::new(),
         }),
     }
+}
+
+/// Walk all directories at depth >= 2 under `skills_dir_abs` (the expected skill
+/// directory depth) and build `DiscoveredDirectoryData` entries regardless of
+/// whether each directory contains a SKILL.md.
+fn discover_directories(
+    skills_dir_abs: &Path,
+    repo_root: &Path,
+    config: &Config,
+    skill_path_to_index: &BTreeMap<String, usize>,
+) -> Vec<Arc<DiscoveredDirectoryData>> {
+    let mut result = Vec::new();
+
+    for entry in WalkDir::new(skills_dir_abs)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if !entry.file_type().is_dir() {
+            continue;
+        }
+
+        let abs_path = entry.path();
+        let dir_rel = abs_path
+            .strip_prefix(skills_dir_abs)
+            .unwrap_or(abs_path);
+        let depth = dir_rel.components().count() as i64;
+
+        if depth < 2 {
+            continue;
+        }
+
+        let dir_name = abs_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let rel_path = abs_path
+            .strip_prefix(repo_root)
+            .unwrap_or(abs_path)
+            .to_string_lossy()
+            .to_string();
+
+        let has_skill_file = abs_path.join("SKILL.md").is_file();
+        let skill_index = skill_path_to_index.get(&rel_path).copied();
+
+        let mut files: Vec<Arc<SubDirFileData>> = Vec::new();
+        if let Ok(dir_entries) = std::fs::read_dir(abs_path) {
+            for file_entry in dir_entries.filter_map(|e| e.ok()) {
+                let file_path = file_entry.path();
+                if !file_path.is_file() || file_path.file_name().is_some_and(|n| n == "SKILL.md") {
+                    continue;
+                }
+                let file_name = file_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let ext = file_path
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let rel_file = file_path
+                    .strip_prefix(repo_root)
+                    .unwrap_or(&file_path)
+                    .to_string_lossy()
+                    .to_string();
+
+                let is_data = config.is_data_extension(&ext);
+                let (file_content, file_refs) = read_and_extract(&file_path, &ext, &rel_file);
+
+                files.push(Arc::new(SubDirFileData {
+                    name: file_name,
+                    extension: ext,
+                    path: rel_file,
+                    is_data_file: is_data,
+                    content: file_content,
+                    referenced_paths: file_refs,
+                }));
+            }
+        }
+
+        let file_count = files.len() as i64;
+        let span = Arc::new(SpanData {
+            filename: rel_path.clone(),
+            begin_line: 1,
+            end_line: 1,
+        });
+
+        result.push(Arc::new(DiscoveredDirectoryData {
+            name: dir_name,
+            path: rel_path,
+            depth,
+            has_skill_file,
+            skill_index,
+            file_count,
+            files,
+            span,
+        }));
+    }
+
+    result
 }
 
 /// Read a file's text content (if small enough and valid UTF-8) and extract
@@ -491,6 +623,52 @@ fn scan_subdirs(skill_dir: &Path, repo_root: &Path, config: &Config) -> Vec<Arc<
             files,
             file_count,
             unique_extensions,
+        }));
+    }
+
+    result
+}
+
+fn scan_root_files(skill_dir: &Path, repo_root: &Path, config: &Config) -> Vec<Arc<SubDirFileData>> {
+    let mut result = Vec::new();
+
+    let entries = match std::fs::read_dir(skill_dir) {
+        Ok(e) => e,
+        Err(_) => return result,
+    };
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if file_name == "SKILL.md" {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let rel_file = path
+            .strip_prefix(repo_root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+
+        let is_data = config.is_data_extension(&ext);
+        let (file_content, file_refs) = read_and_extract(&path, &ext, &rel_file);
+
+        result.push(Arc::new(SubDirFileData {
+            name: file_name,
+            extension: ext,
+            path: rel_file,
+            is_data_file: is_data,
+            content: file_content,
+            referenced_paths: file_refs,
         }));
     }
 
