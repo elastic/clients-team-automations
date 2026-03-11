@@ -247,6 +247,10 @@ type Skill {
   all_other_skills: [Skill!]! # Every other skill in the repo (for cross-checks)
   span: Span! # Source location of the SKILL.md file
   frontmatter_span: Span # Source location of frontmatter block (nullable)
+  name_span: Span # Source location of the `name` field line in frontmatter (nullable)
+  description_span: Span # Source location of the `description` field line in frontmatter (nullable)
+  compatibility_span: Span # Source location of the `compatibility` field line in frontmatter (nullable)
+  frontmatter_end_span: Span # Single-line span at the closing `---` of frontmatter (nullable)
   github_org: GitHubOrg! # The configured GitHub org (for team validation, etc.)
 }
 
@@ -315,6 +319,7 @@ type ReferencedPath {
   resolved_path: String # Normalized repo-root-relative path (nullable if unresolvable)
   kind: String! # Reference type: markdown_link, markdown_image, js_import, js_require, js_dynamic_import, python_relative_import, shell_source
   line_number: Int! # 1-based line where the reference appears
+  span: Span! # Source location pointing to the exact line in the source file where this reference appears
 }
 
 type MetadataEntry {
@@ -370,8 +375,32 @@ span_: frontmatter_span @optional {
 }
 ```
 
-The `span_:` prefix is a Trustfall edge alias. It prevents the edge name from colliding with output field names. Always
-use one of these two patterns. If omitted, the finding will still fire but without file/line information.
+**Field-specific spans** (point to the exact line of a frontmatter field; prefer these over `frontmatter_span` for field-level lints):
+
+```graphql
+span_: name_span @optional {
+    filename @output
+    begin_line @output
+    end_line @output
+}
+```
+
+Available field spans on `Skill`: `name_span`, `description_span`, `compatibility_span`. Use `frontmatter_end_span` for lints about missing fields (points to the closing `---` line).
+
+**Reference-level span** (points to the exact line in the source file where a path reference appears; use inside a `referenced_path` block):
+
+```graphql
+referenced_path {
+    # ... filters and outputs ...
+    span_: span {
+        filename @output
+        begin_line @output
+        end_line @output
+    }
+}
+```
+
+The `span_:` prefix is a Trustfall edge alias. It prevents the edge name from colliding with output field names. If omitted, the finding will still fire but without file/line information.
 
 ---
 
@@ -970,19 +999,18 @@ SkillLint(
                               @output(name: "target_path")
                 raw_path @output(name: "raw_ref")
                 kind @output(name: "ref_kind")
-                line_number @output(name: "ref_line")
-            }
 
-            span_: span {
-                filename @output
-                begin_line @output
-                end_line @output
+                span_: span {
+                    filename @output
+                    begin_line @output
+                    end_line @output
+                }
             }
         }
     }"#,
     arguments: {},
     error_message: "A skill references a path outside its own directory.",
-    per_result_error_template: Some("{{skill_file_path}} line {{ref_line}}: {{ref_kind}} '{{raw_ref}}' resolves to '{{target_path}}' which is outside {{skill_path}}"),
+    per_result_error_template: Some("{{skill_file_path}}: {{ref_kind}} '{{raw_ref}}' resolves to '{{target_path}}' which is outside {{skill_path}}"),
 )
 ```
 
@@ -1012,21 +1040,20 @@ SkillLint(
                                       @output(name: "target_path")
                         raw_path @output(name: "raw_ref")
                         kind @output(name: "ref_kind")
-                        line_number @output(name: "ref_line")
+
+                        span_: span {
+                            filename @output
+                            begin_line @output
+                            end_line @output
+                        }
                     }
                 }
-            }
-
-            span_: span {
-                filename @output
-                begin_line @output
-                end_line @output
             }
         }
     }"#,
     arguments: {},
     error_message: "A script file references a path outside its skill's directory.",
-    per_result_error_template: Some("{{file_path}} line {{ref_line}}: {{ref_kind}} '{{raw_ref}}' resolves to '{{target_path}}' which is outside {{skill_path}}"),
+    per_result_error_template: Some("{{file_path}}: {{ref_kind}} '{{raw_ref}}' resolves to '{{target_path}}' which is outside {{skill_path}}"),
 )
 ```
 
@@ -1038,6 +1065,8 @@ Key points:
   resolved (e.g. if it would escape the repo root). Filter with `is_not_null` before comparing.
 - `@tag(name: "skill_path")` captures the skill's directory path. `not_has_prefix` then checks whether the resolved
   reference target starts with that prefix. If it does not, the reference points outside the skill.
+- Place `span_: span { ... }` **inside** the `referenced_path` block (not on the outer `Skill`) so the error preview
+  points to the exact import/link line in the source file rather than line 1 of SKILL.md.
 - `SubDirFile.content` (nullable `String`) provides the raw text content of subdirectory files. It is null for binary
   files or files exceeding 1 MB. This can be used with regex filters for ad-hoc content checks beyond structured
   reference extraction.
