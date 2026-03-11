@@ -60,6 +60,15 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .collect();
                 Box::new(files.into_iter())
             }
+            "DiscoveredDirectory" => {
+                let dirs: Vec<_> = self
+                    .data
+                    .discovered_dirs
+                    .iter()
+                    .map(|d| Vertex::DiscoveredDirectory(d.clone()))
+                    .collect();
+                Box::new(dirs.into_iter())
+            }
             "GitHubOrg" => {
                 let org = self.data.github_org.clone();
                 Box::new(std::iter::once(Vertex::GitHubOrg(org)))
@@ -184,6 +193,24 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
             ("DiscoveredSkillFile", "depth") => resolve_property_with(contexts, |v| {
                 v.as_discovered_skill_file().unwrap().depth.into()
             }),
+
+            // --- DiscoveredDirectory properties ---
+            ("DiscoveredDirectory", "name") => resolve_property_with(contexts, |v| {
+                v.as_discovered_directory().unwrap().name.clone().into()
+            }),
+            ("DiscoveredDirectory", "path") => resolve_property_with(contexts, |v| {
+                v.as_discovered_directory().unwrap().path.clone().into()
+            }),
+            ("DiscoveredDirectory", "depth") => resolve_property_with(contexts, |v| {
+                v.as_discovered_directory().unwrap().depth.into()
+            }),
+            ("DiscoveredDirectory", "has_skill_file") => resolve_property_with(contexts, |v| {
+                v.as_discovered_directory().unwrap().has_skill_file.into()
+            }),
+            ("DiscoveredDirectory", "file_count") => resolve_property_with(contexts, |v| {
+                v.as_discovered_directory().unwrap().file_count.into()
+            }),
+
             // --- Section properties ---
             ("Section", "level") => resolve_property_with(contexts, |v| {
                 v.as_section().unwrap().level.into()
@@ -376,6 +403,15 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     .collect();
                 Box::new(items.into_iter())
             }),
+            ("Skill", "root_file") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                let items: Vec<Vertex> = skill
+                    .root_files
+                    .iter()
+                    .map(|f| Vertex::SubDirFile(f.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
             ("Skill", "referenced_path") => resolve_neighbors_with(contexts, move |v| {
                 let skill = v.as_skill().unwrap();
                 let items: Vec<Vertex> = skill
@@ -441,6 +477,33 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
             ("DiscoveredSkillFile", "span") => resolve_neighbors_with(contexts, move |v| {
                 let dsf = v.as_discovered_skill_file().unwrap();
                 Box::new(std::iter::once(Vertex::Span(dsf.span.clone())))
+            }),
+
+            ("DiscoveredDirectory", "file") => resolve_neighbors_with(contexts, move |v| {
+                let dd = v.as_discovered_directory().unwrap();
+                let items: Vec<Vertex> = dd
+                    .files
+                    .iter()
+                    .map(|f| Vertex::SubDirFile(f.clone()))
+                    .collect();
+                Box::new(items.into_iter())
+            }),
+            ("DiscoveredDirectory", "skill") => {
+                let all_skills = data.skills.clone();
+                resolve_neighbors_with(contexts, move |v| {
+                    let dd = v.as_discovered_directory().unwrap();
+                    match dd.skill_index {
+                        Some(idx) => match all_skills.get(idx) {
+                            Some(s) => Box::new(std::iter::once(Vertex::Skill(s.clone()))),
+                            None => Box::new(std::iter::empty()),
+                        },
+                        None => Box::new(std::iter::empty()),
+                    }
+                })
+            }
+            ("DiscoveredDirectory", "span") => resolve_neighbors_with(contexts, move |v| {
+                let dd = v.as_discovered_directory().unwrap();
+                Box::new(std::iter::once(Vertex::Span(dd.span.clone())))
             }),
 
             ("Section", "code_block") => resolve_neighbors_with(contexts, move |v| {
