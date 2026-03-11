@@ -1,8 +1,7 @@
 ---
 source: tests/integration_test.rs
-assertion_line: 112
 expression: snapshot_report(&report)
 ---
-error[skill_name_missing_group_prefix]: skills/test/name-mismatch/SKILL.md:1: skills/test/name-mismatch/SKILL.md name 'wrong-name' does not start with group 'test'
+error[skill_name_missing_group_prefix]: skills/test/name-mismatch/SKILL.md:2: skills/test/name-mismatch/SKILL.md name 'wrong-name' does not start with group 'test'
 
 Ran 1 lints: 1 errors, 0 warnings

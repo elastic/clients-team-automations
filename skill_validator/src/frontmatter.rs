@@ -11,6 +11,7 @@ pub struct Frontmatter {
     pub raw: String,
     pub begin_line: usize,
     pub end_line: usize,
+    pub field_lines: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,10 +52,23 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
 
     let yaml_value: Result<serde_yml::Value, _> = serde_yml::from_str(&raw);
 
+    let mut field_lines: BTreeMap<String, usize> = BTreeMap::new();
+    for (i, line) in lines.iter().enumerate().take(end_idx).skip(1) {
+        if !line.starts_with(' ') && !line.starts_with('\t') {
+            if let Some(colon_pos) = line.find(':') {
+                let key = &line[..colon_pos];
+                if !key.is_empty() {
+                    field_lines.insert(key.to_string(), i + 1); // 1-based file line
+                }
+            }
+        }
+    }
+
     let mut fm = Frontmatter {
         raw,
         begin_line,
         end_line,
+        field_lines,
         ..Default::default()
     };
 
@@ -153,5 +167,32 @@ mod tests {
         let fm = result.frontmatter.unwrap();
         let val = fm.metadata.get("custom_key").expect("custom_key missing");
         assert_eq!(val.as_str(), Some("hello"));
+    }
+
+    #[test]
+    fn field_lines_tracks_name_line() {
+        let content = "---\nname: my-skill\ndescription: A test skill\n---\n# Body";
+        let result = parse_frontmatter(content);
+        let fm = result.frontmatter.unwrap();
+        assert_eq!(fm.field_lines.get("name").copied(), Some(2));
+        assert_eq!(fm.field_lines.get("description").copied(), Some(3));
+    }
+
+    #[test]
+    fn field_lines_skips_nested_keys() {
+        let content = "---\nname: my-skill\nmetadata:\n  version: 0.1.0\n  author: elastic\n---\n# Body";
+        let result = parse_frontmatter(content);
+        let fm = result.frontmatter.unwrap();
+        assert!(fm.field_lines.get("version").is_none(), "nested key should not be tracked");
+        assert!(fm.field_lines.get("author").is_none(), "nested key should not be tracked");
+        assert_eq!(fm.field_lines.get("metadata").copied(), Some(3));
+    }
+
+    #[test]
+    fn field_lines_multiline_description() {
+        let content = "---\nname: my-skill\ndescription: >\n  A multi-line\n  description here\n---\n# Body";
+        let result = parse_frontmatter(content);
+        let fm = result.frontmatter.unwrap();
+        assert_eq!(fm.field_lines.get("description").copied(), Some(3));
     }
 }

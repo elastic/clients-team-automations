@@ -1,8 +1,7 @@
 ---
 source: tests/integration_test.rs
-assertion_line: 127
 expression: snapshot_report(&report)
 ---
-error[skill_name_consecutive_hyphens]: skills/test/bad--name/SKILL.md:1: skills/test/bad--name/SKILL.md has name 'test-bad--name' containing consecutive hyphens
+error[skill_name_consecutive_hyphens]: skills/test/bad--name/SKILL.md:2: skills/test/bad--name/SKILL.md has name 'test-bad--name' containing consecutive hyphens
 
 Ran 1 lints: 1 errors, 0 warnings

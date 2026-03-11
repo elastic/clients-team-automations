@@ -140,6 +140,18 @@ type Skill {
     """Span of the frontmatter block within SKILL.md."""
     frontmatter_span: Span
 
+    """Span of the `name` field in frontmatter."""
+    name_span: Span
+
+    """Span of the `description` field in frontmatter."""
+    description_span: Span
+
+    """Span of the `compatibility` field in frontmatter."""
+    compatibility_span: Span
+
+    """Single-line span at the closing `---` of the frontmatter block."""
+    frontmatter_end_span: Span
+
     """The configured GitHub organization (for team validation, etc.)."""
     github_org: GitHubOrg!
 }
@@ -342,6 +354,9 @@ type ReferencedPath {
 
     """1-based line number where the reference appears in the source file."""
     line_number: Int!
+
+    """Span pointing to the source file at the line where this reference appears."""
+    span: Span!
 }
 
 # ---------------------------------------------------------------------------

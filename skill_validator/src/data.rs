@@ -78,6 +78,10 @@ pub struct SkillData {
     pub referenced_paths: Vec<Arc<ReferencedPathData>>,
     pub span: Arc<SpanData>,
     pub frontmatter_span: Option<Arc<SpanData>>,
+    pub name_span: Option<Arc<SpanData>>,
+    pub description_span: Option<Arc<SpanData>>,
+    pub compatibility_span: Option<Arc<SpanData>>,
+    pub frontmatter_end_span: Option<Arc<SpanData>>,
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +175,20 @@ fn yaml_value_to_metadata(key: String, value: &serde_yml::Value) -> MetadataEntr
             children: vec![],
         },
     }
+}
+
+fn make_field_span(
+    filename: &str,
+    field_lines: &std::collections::BTreeMap<String, usize>,
+    key: &str,
+) -> Option<Arc<SpanData>> {
+    field_lines.get(key).map(|&line| {
+        Arc::new(SpanData {
+            filename: filename.to_string(),
+            begin_line: line as i64,
+            end_line: line as i64,
+        })
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -282,7 +300,7 @@ pub fn load_skills_data(
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            let (has_fm, raw_fm, name, description, license, compatibility, allowed_tools, metadata_entries, fm_span) =
+            let (has_fm, raw_fm, name, description, license, compatibility, allowed_tools, metadata_entries, fm_span, name_span, description_span, compatibility_span, frontmatter_end_span) =
                 match &fm_result.frontmatter {
                     Some(fm) => {
                         let entries: Vec<Arc<MetadataEntryData>> = fm
@@ -295,6 +313,14 @@ pub fn load_skills_data(
                             begin_line: fm.begin_line as i64,
                             end_line: fm.end_line as i64,
                         });
+                        let n_span = make_field_span(&rel_path, &fm.field_lines, "name");
+                        let d_span = make_field_span(&rel_path, &fm.field_lines, "description");
+                        let c_span = make_field_span(&rel_path, &fm.field_lines, "compatibility");
+                        let end_span = Some(Arc::new(SpanData {
+                            filename: rel_path.clone(),
+                            begin_line: fm.end_line as i64,
+                            end_line: fm.end_line as i64,
+                        }));
                         (
                             true,
                             Some(fm.raw.clone()),
@@ -305,9 +331,13 @@ pub fn load_skills_data(
                             fm.allowed_tools.clone(),
                             entries,
                             Some(span),
+                            n_span,
+                            d_span,
+                            c_span,
+                            end_span,
                         )
                     }
-                    None => (false, None, None, None, None, None, None, Vec::new(), None),
+                    None => (false, None, None, None, None, None, None, Vec::new(), None, None, None, None, None),
                 };
 
             let desc_len = description.as_ref().map(|d| d.len() as i64).unwrap_or(0);
@@ -355,6 +385,10 @@ pub fn load_skills_data(
                 referenced_paths: skill_refs,
                 span: span.clone(),
                 frontmatter_span: fm_span,
+                name_span,
+                description_span,
+                compatibility_span,
+                frontmatter_end_span,
             }));
 
             group_map

@@ -6,6 +6,7 @@ pub struct ReferencedPathData {
     pub resolved_path: Option<String>,
     pub kind: String,
     pub line_number: i64,
+    pub source_path: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,7 @@ pub fn referenced_paths_from_markdown_links(
                 resolved_path: resolved,
                 kind: kind.to_string(),
                 line_number: link.line_number,
+                source_path: skill_file_rel_path.to_string(),
             }
         })
         .collect()
@@ -110,6 +112,7 @@ fn extract_js_references(content: &str, file_rel_path: &str) -> Vec<ReferencedPa
                     resolved_path: resolve_path(path, file_rel_path),
                     kind: "js_import".to_string(),
                     line_number,
+                    source_path: file_rel_path.to_string(),
                 });
             }
             continue;
@@ -123,6 +126,7 @@ fn extract_js_references(content: &str, file_rel_path: &str) -> Vec<ReferencedPa
                     resolved_path: resolve_path(path, file_rel_path),
                     kind: kind.to_string(),
                     line_number,
+                    source_path: file_rel_path.to_string(),
                 });
             }
         }
@@ -194,6 +198,7 @@ fn extract_python_references(content: &str, file_rel_path: &str) -> Vec<Referenc
                     resolved_path: resolve_path(path_str, file_rel_path),
                     kind: "python_relative_import".to_string(),
                     line_number,
+                    source_path: file_rel_path.to_string(),
                 });
             }
         }
@@ -206,6 +211,7 @@ fn extract_python_references(content: &str, file_rel_path: &str) -> Vec<Referenc
                     resolved_path: resolve_path(path, file_rel_path),
                     kind: "python_relative_import".to_string(),
                     line_number,
+                    source_path: file_rel_path.to_string(),
                 });
             }
         }
@@ -297,6 +303,7 @@ fn extract_shell_references(content: &str, file_rel_path: &str) -> Vec<Reference
                     resolved_path: resolve_path(path, file_rel_path),
                     kind: "shell_source".to_string(),
                     line_number,
+                    source_path: file_rel_path.to_string(),
                 });
             }
         }
