@@ -8,7 +8,7 @@ use trustfall::provider::{
     VertexIterator, resolve_neighbors_with, resolve_property_with,
 };
 
-use crate::data::SkillsData;
+use crate::data::{SkillsData, SpanData};
 use vertex::Vertex;
 
 #[derive(Debug, Clone)]
@@ -473,6 +473,16 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     Some(span) => Box::new(std::iter::once(Vertex::Span(span.clone()))),
                     None => Box::new(std::iter::empty()),
                 }
+            }),
+
+            ("ReferencedPath", "span") => resolve_neighbors_with(contexts, move |v| {
+                let rp = v.as_referenced_path().unwrap();
+                let span = Arc::new(SpanData {
+                    filename: rp.source_path.clone(),
+                    begin_line: rp.line_number,
+                    end_line: rp.line_number,
+                });
+                Box::new(std::iter::once(Vertex::Span(span)))
             }),
 
             ("GroupFolder", "skill") => {

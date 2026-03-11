@@ -354,6 +354,9 @@ type ReferencedPath {
 
     """1-based line number where the reference appears in the source file."""
     line_number: Int!
+
+    """Span pointing to the source file at the line where this reference appears."""
+    span: Span!
 }
 
 # ---------------------------------------------------------------------------
