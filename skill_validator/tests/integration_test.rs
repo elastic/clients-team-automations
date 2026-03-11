@@ -393,3 +393,57 @@ fn subdir_file_content_readable() {
     });
     assert!(has_content, "at least one file should have non-empty content");
 }
+
+// ---- Line precision (span field accuracy) ----
+
+#[test]
+fn name_too_long_finding_points_to_name_field() {
+    let report = run_lints_on("line_precision", &["skill_name_too_long"]);
+    assert!(report.errors > 0, "expected errors for line_precision fixture (name too long)");
+    let finding = report
+        .findings
+        .iter()
+        .find(|f| f.lint_id == "skill_name_too_long")
+        .expect("skill_name_too_long finding not found");
+    assert_eq!(
+        finding.line,
+        Some(2),
+        "name_too_long finding should point to line 2 (the name: field), got {:?}",
+        finding.line
+    );
+}
+
+#[test]
+fn description_too_short_finding_points_to_description_field() {
+    let report = run_lints_on("line_precision", &["skill_description_too_short"]);
+    assert!(report.warnings > 0, "expected warnings for line_precision fixture (description too short)");
+    let finding = report
+        .findings
+        .iter()
+        .find(|f| f.lint_id == "skill_description_too_short")
+        .expect("skill_description_too_short finding not found");
+    assert_eq!(
+        finding.line,
+        Some(3),
+        "description_too_short finding should point to line 3 (the description: field), got {:?}",
+        finding.line
+    );
+}
+
+#[test]
+fn missing_name_finding_points_to_frontmatter_end() {
+    let report = run_lints_on("missing_name", &["skill_missing_name"]);
+    assert!(report.errors > 0, "expected errors for missing_name fixture");
+    let finding = report
+        .findings
+        .iter()
+        .find(|f| f.lint_id == "skill_missing_name")
+        .expect("skill_missing_name finding not found");
+    // The missing_name fixture has frontmatter closing --- on line 3
+    assert_eq!(
+        finding.line,
+        Some(3),
+        "missing_name finding should point to the closing --- line (3), got {:?}",
+        finding.line
+    );
+}

@@ -1,8 +1,7 @@
 ---
 source: tests/integration_test.rs
-assertion_line: 71
 expression: snapshot_report(&report)
 ---
-error[skill_missing_description]: skills/test/no-desc/SKILL.md:1: skills/test/no-desc/SKILL.md frontmatter is missing required field: description
+error[skill_missing_description]: skills/test/no-desc/SKILL.md:3: skills/test/no-desc/SKILL.md frontmatter is missing required field: description
 
 Ran 1 lints: 1 errors, 0 warnings

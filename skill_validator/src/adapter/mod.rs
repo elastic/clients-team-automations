@@ -446,6 +446,34 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
                     None => Box::new(std::iter::empty()),
                 }
             }),
+            ("Skill", "name_span") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                match &skill.name_span {
+                    Some(span) => Box::new(std::iter::once(Vertex::Span(span.clone()))),
+                    None => Box::new(std::iter::empty()),
+                }
+            }),
+            ("Skill", "description_span") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                match &skill.description_span {
+                    Some(span) => Box::new(std::iter::once(Vertex::Span(span.clone()))),
+                    None => Box::new(std::iter::empty()),
+                }
+            }),
+            ("Skill", "compatibility_span") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                match &skill.compatibility_span {
+                    Some(span) => Box::new(std::iter::once(Vertex::Span(span.clone()))),
+                    None => Box::new(std::iter::empty()),
+                }
+            }),
+            ("Skill", "frontmatter_end_span") => resolve_neighbors_with(contexts, move |v| {
+                let skill = v.as_skill().unwrap();
+                match &skill.frontmatter_end_span {
+                    Some(span) => Box::new(std::iter::once(Vertex::Span(span.clone()))),
+                    None => Box::new(std::iter::empty()),
+                }
+            }),
 
             ("GroupFolder", "skill") => {
                 let all_skills = data.skills.clone();

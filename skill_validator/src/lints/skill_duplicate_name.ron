@@ -18,7 +18,7 @@ SkillLint(
                 skill_file_path @output(name: "duplicate_path")
                 group_folder @output(name: "duplicate_group")
 
-                span_: span {
+                span_: name_span @optional {
                     filename @output
                     begin_line @output
                     end_line @output

@@ -1,8 +1,7 @@
 ---
 source: tests/integration_test.rs
-assertion_line: 120
 expression: snapshot_report(&report)
 ---
-error[skill_name_missing_folder_suffix]: skills/test/name-mismatch/SKILL.md:1: skills/test/name-mismatch/SKILL.md name 'wrong-name' does not end with folder 'name-mismatch'
+error[skill_name_missing_folder_suffix]: skills/test/name-mismatch/SKILL.md:2: skills/test/name-mismatch/SKILL.md name 'wrong-name' does not end with folder 'name-mismatch'
 
 Ran 1 lints: 1 errors, 0 warnings

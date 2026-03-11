@@ -13,7 +13,7 @@ SkillLint(
 
             skill_file_path @output
 
-            span_: frontmatter_span @optional {
+            span_: description_span @optional {
                 filename @output
                 begin_line @output
                 end_line @output

@@ -14,7 +14,7 @@ SkillLint(
             group_folder @output
             folder_name @output
 
-            span_: frontmatter_span @optional {
+            span_: frontmatter_end_span @optional {
                 filename @output
                 begin_line @output
                 end_line @output

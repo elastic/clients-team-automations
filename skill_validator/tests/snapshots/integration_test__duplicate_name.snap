@@ -1,9 +1,8 @@
 ---
 source: tests/integration_test.rs
-assertion_line: 95
 expression: snapshot_report(&report)
 ---
-error[skill_duplicate_name]: skills/test/dup-one/SKILL.md:1: skill 'skills/test/dup-two/SKILL.md' has duplicate name 'test-duplicate' — also used by skills/test/dup-one/SKILL.md
-error[skill_duplicate_name]: skills/test/dup-two/SKILL.md:1: skill 'skills/test/dup-one/SKILL.md' has duplicate name 'test-duplicate' — also used by skills/test/dup-two/SKILL.md
+error[skill_duplicate_name]: skills/test/dup-one/SKILL.md:2: skill 'skills/test/dup-two/SKILL.md' has duplicate name 'test-duplicate' — also used by skills/test/dup-one/SKILL.md
+error[skill_duplicate_name]: skills/test/dup-two/SKILL.md:2: skill 'skills/test/dup-one/SKILL.md' has duplicate name 'test-duplicate' — also used by skills/test/dup-two/SKILL.md
 
 Ran 1 lints: 2 errors, 0 warnings
