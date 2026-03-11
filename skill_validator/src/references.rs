@@ -257,7 +257,7 @@ fn python_relative_import_to_path(module_path: &str) -> Option<String> {
 }
 
 /// Find `open('...')` and `Path('...')` calls with relative paths.
-fn extract_python_path_calls<'a>(line: &'a str) -> Vec<&'a str> {
+fn extract_python_path_calls(line: &str) -> Vec<&str> {
     let mut results = Vec::new();
     let patterns = ["open(", "Path("];
 
