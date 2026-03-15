@@ -107,6 +107,7 @@ runs:
         INPUT_CONFIG: ${{ inputs.config }}
         INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
         INPUT_SKILLS_DIR: ${{ inputs.skills-dir }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         SCOPE_ARGS="--scope ${INPUT_SCOPE}"
         if [ -n "${INPUT_BASE}" ]; then
