@@ -3,5 +3,6 @@
   entry: skill-validator
   language: system
   files: ^skills/
-  pass_filenames: false
+  pass_filenames: true
+  args: ["--files"]
   description: Validate skill folder structure, frontmatter, and content conventions.

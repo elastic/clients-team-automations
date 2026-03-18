@@ -105,6 +105,12 @@ struct LintArgs {
     #[arg(long, value_name = "PATH")]
     comment: Option<PathBuf>,
 
+    /// Validate only the skills that contain these files (pre-commit mode).
+    /// When set, scope/base options are ignored. Pre-commit passes staged
+    /// filenames here via: `args: ["--files"]` + `pass_filenames: true`.
+    #[arg(long = "files", num_args = 1.., value_name = "FILE")]
+    files: Vec<PathBuf>,
+
     /// Automatically fix auto-fixable issues (reserved for future use)
     #[arg(long)]
     fix: bool,
@@ -237,7 +243,23 @@ fn run_lint_command(args: LintArgs) -> ExitCode {
 
     let skills_dir = args.skills_dir.unwrap_or_else(|| cfg.skills_dir.clone());
 
-    let scope_filter = if args.scope == Scope::Changed {
+    let scope_filter = if !args.files.is_empty() {
+        // Pre-commit mode: derive skill dirs from the explicitly provided file list.
+        let skills_prefix = skills_dir.to_string_lossy();
+        let skills_prefix = skills_prefix.trim_end_matches('/');
+        let dirs = git::skill_dirs_from_files(&args.files, skills_prefix);
+        if args.verbose {
+            eprintln!("Pre-commit mode: {} skill(s) in scope", dirs.len());
+            for d in &dirs {
+                eprintln!("  {d}");
+            }
+        }
+        if dirs.is_empty() {
+            eprintln!("No skills found in the provided file list — nothing to validate.");
+            return ExitCode::SUCCESS;
+        }
+        Some(dirs)
+    } else if args.scope == Scope::Changed {
         let repo_root = match std::env::current_dir() {
             Ok(d) => d,
             Err(e) => {
