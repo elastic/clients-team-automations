@@ -1,7 +1,7 @@
 - id: validate-skills
   name: Validate Agent Skills
   entry: skill-validator
-  language: system
+  language: rust
   files: ^skills/
   pass_filenames: true
   args: ["--files"]
