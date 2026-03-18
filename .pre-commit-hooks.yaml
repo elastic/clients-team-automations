@@ -1,7 +1,8 @@
 - id: validate-skills
   name: Validate Agent Skills
   entry: skill-validator
-  language: system
+  language: rust
   files: ^skills/
-  pass_filenames: false
+  pass_filenames: true
+  args: ["--files"]
   description: Validate skill folder structure, frontmatter, and content conventions.
