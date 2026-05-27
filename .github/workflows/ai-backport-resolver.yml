@@ -138,28 +138,31 @@ jobs:
             [ -z "$file_diff" ] && file_diff="(diff not available)"
 
             local prompt
-            prompt="You are resolving a git merge conflict during a cherry-pick backport.
-
-CONTEXT:
-- PR #${PR_NUMBER} was merged to the main branch.
-- We are backporting commit ${COMMIT_SHA} to \`${BASE_BRANCH}\`.
-- The cherry-pick produced a conflict in this file.
-
-ORIGINAL PR DIFF FOR THIS FILE:
-\`\`\`diff
-${file_diff}
-\`\`\`
-
-FILE WITH CONFLICT MARKERS:
-\`\`\`
-${conflicted_content}
-\`\`\`
-
-INSTRUCTIONS:
-1. The \`<<<<<<< HEAD\` side is the target branch (${BASE_BRANCH}).
-2. The \`=======\` / \`>>>>>>>\` side is the cherry-picked change.
-3. Apply the intent of the cherry-picked change onto the target branch code.
-4. Output ONLY the complete resolved file. No markdown fences, no commentary."
+            printf '%s\n' \
+              "You are resolving a git merge conflict during a cherry-pick backport." \
+              "" \
+              "CONTEXT:" \
+              "- PR #${PR_NUMBER} was merged to the main branch." \
+              "- We are backporting commit ${COMMIT_SHA} to \`${BASE_BRANCH}\`." \
+              "- The cherry-pick produced a conflict in this file." \
+              "" \
+              "ORIGINAL PR DIFF FOR THIS FILE:" \
+              "\`\`\`diff" \
+              "${file_diff}" \
+              "\`\`\`" \
+              "" \
+              "FILE WITH CONFLICT MARKERS:" \
+              "\`\`\`" \
+              "${conflicted_content}" \
+              "\`\`\`" \
+              "" \
+              "INSTRUCTIONS:" \
+              "1. The \`<<<<<<< HEAD\` side is the target branch (${BASE_BRANCH})." \
+              "2. The \`=======\` / \`>>>>>>>\` side is the cherry-picked change." \
+              "3. Apply the intent of the cherry-picked change onto the target branch code." \
+              "4. Output ONLY the complete resolved file. No markdown fences, no commentary." \
+              > /tmp/prompt-"${filepath//\//-}".txt
+            prompt=$(cat /tmp/prompt-"${filepath//\//-}".txt)
 
             local response
             response=$(curl -sf \
@@ -233,21 +236,25 @@ INSTRUCTIONS:
           if [ "$CONFLICTS" == "false" ]; then
             PR_BODY="Backport #${PR_NUMBER} to \`${BASE_BRANCH}\` (no conflicts)."
           else
-            PR_BODY="Backport #${PR_NUMBER} to \`${BASE_BRANCH}\`.
-
-### AI-resolved conflicts
-
-The following files had conflicts resolved automatically by Claude:
-
-${RESOLVED_LIST}"
+            printf '%s\n' \
+              "Backport #${PR_NUMBER} to \`${BASE_BRANCH}\`." \
+              "" \
+              "### AI-resolved conflicts" \
+              "" \
+              "The following files had conflicts resolved automatically by Claude:" \
+              "" \
+              "${RESOLVED_LIST}" \
+              > /tmp/pr-body.txt
             if [ -n "${FAILED_FILES:-}" ]; then
-              PR_BODY="${PR_BODY}
-
-> WARNING: The following files could not be resolved automatically and still contain conflict markers: \`${FAILED_FILES}\`"
+              printf '%s\n' \
+                "> WARNING: The following files could not be resolved automatically and still contain conflict markers: \`${FAILED_FILES}\`" \
+                >> /tmp/pr-body.txt
             else
-              PR_BODY="${PR_BODY}
-> **Please review the AI-resolved conflicts carefully before merging.**"
+              printf '%s\n' \
+                "> **Please review the AI-resolved conflicts carefully before merging.**" \
+                >> /tmp/pr-body.txt
             fi
+            PR_BODY=$(cat /tmp/pr-body.txt)
           fi
 
           BACKPORT_PR_URL=$(gh pr create \
@@ -258,10 +265,13 @@ ${RESOLVED_LIST}"
           if [ "$CONFLICTS" == "false" ]; then
             COMMENT="**AI Backport Resolver** created a backport PR (no conflicts): ${BACKPORT_PR_URL}"
           else
-            COMMENT="**AI Backport Resolver** resolved conflicts and created a backport PR: ${BACKPORT_PR_URL}
-
-Files with AI-resolved conflicts:
-${RESOLVED_LIST}"
+            printf '%s\n' \
+              "**AI Backport Resolver** resolved conflicts and created a backport PR: ${BACKPORT_PR_URL}" \
+              "" \
+              "Files with AI-resolved conflicts:" \
+              "${RESOLVED_LIST}" \
+              > /tmp/comment.txt
+            COMMENT=$(cat /tmp/comment.txt)
           fi
 
           gh pr comment "$PR_NUMBER" --body "$COMMENT"
