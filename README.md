@@ -31,17 +31,17 @@ jobs:
 
 **Requires**: `LITELLM_API_KEY` secret in the calling repo.
 
-## Agent label convention
+## `auto-pr` label convention
 
-Workflows that auto-fix issues on demand use the label prefix `agent: <task>`.
+Adding an `auto-pr` label (or `auto-pr: <context>`) to an issue signals that an AI agent should process it and open a fix PR.
 
-Adding an `agent: <task>` label to an issue signals that an AI agent should process it. Each repo registers which label it handles:
+Workflows check `startsWith('auto-pr')`, so both `auto-pr` and `auto-pr: kibana type check` trigger the same workflow. The suffix is optional context for humans.
 
 | Label | Repo | What it does |
 |---|---|---|
-| `agent: kibana type check` | `elastic/elasticsearch-specification` | Reads the issue, locates the relevant spec types, and opens a fix PR |
+| `auto-pr: kibana type check` | `elastic/elasticsearch-specification` | Reads the issue, locates the relevant spec types, and opens a fix PR |
 
-To add a new agent: create a workflow in your repo that triggers on `issues: labeled`, checks for your label, and implements the fix.
+To add a new agent in your repo: create a workflow that triggers on `issues: labeled` and checks `startsWith(github.event.label.name, 'auto-pr')`.
 
 ## License
 
