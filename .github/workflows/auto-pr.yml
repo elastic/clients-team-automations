@@ -1,0 +1,210 @@
+name: Auto PR
+# Reusable workflow — triggered by an "auto-pr" label on an issue.
+# Reads the issue, searches the calling repo for relevant files, calls Claude
+# to produce a fix, and opens a PR.
+#
+# The calling repo should provide .github/auto-pr-context.md with:
+#   - A description of the codebase and conventions
+#   - Where relevant files live (e.g. "type definitions are in specification/")
+#   - What kinds of fixes are expected
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: "Issue number to fix"
+        required: true
+        type: number
+      search_directory:
+        description: "Directory to search for relevant files (default: repo root)"
+        required: false
+        type: string
+        default: "."
+    secrets:
+      LITELLM_API_KEY:
+        description: "API key for elastic.litellm-prod.ai"
+        required: true
+
+jobs:
+  create-pr:
+    name: Auto PR from issue
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Read issue and find relevant files
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          SEARCH_DIR: ${{ inputs.search_directory }}
+        run: |
+          set -euo pipefail
+
+          # Read issue
+          gh issue view "$ISSUE_NUMBER" --json number,title,body,labels \
+            > /tmp/issue.json
+
+          ISSUE_TITLE=$(jq -r '.title' /tmp/issue.json)
+          ISSUE_BODY=$(jq -r '.body' /tmp/issue.json)
+
+          echo "Issue: #${ISSUE_NUMBER} - ${ISSUE_TITLE}"
+
+          # Read repo-specific context if present
+          if [ -f .github/auto-pr-context.md ]; then
+            CONTEXT=$(cat .github/auto-pr-context.md)
+          else
+            CONTEXT="No additional context provided."
+          fi
+
+          # Extract potential identifiers (type names, symbols) from the issue body
+          # Look for PascalCase words and quoted identifiers as search terms
+          TERMS=$(echo "$ISSUE_BODY" | \
+            grep -oE "'[A-Za-z_][A-Za-z0-9_.]+'" | tr -d "'" | sort -u | head -20 || true)
+          if [ -z "$TERMS" ]; then
+            TERMS=$(echo "$ISSUE_BODY" | \
+              grep -oE '\b[A-Z][a-zA-Z0-9]{3,}\b' | sort -u | head -20 || true)
+          fi
+
+          echo "Search terms: $TERMS"
+
+          # Find files containing those terms (limit to 10 files, 500 lines each)
+          FILE_CONTENTS=""
+          if [ -n "$TERMS" ]; then
+            while IFS= read -r term; do
+              while IFS= read -r filepath; do
+                if [ -z "$filepath" ]; then continue; fi
+                if echo "$FILE_CONTENTS" | grep -q "^=== $filepath"; then continue; fi
+                FILE_CONTENTS="${FILE_CONTENTS}
+          === ${filepath} ===
+          $(head -500 "$filepath")
+          "
+                # Cap total context size
+                if [ "${#FILE_CONTENTS}" -gt 80000 ]; then break 2; fi
+              done < <(grep -rl "$term" "$SEARCH_DIR" \
+                --include="*.ts" --include="*.yml" --include="*.yaml" --include="*.json" \
+                2>/dev/null | head -5 || true)
+            done <<< "$TERMS"
+          fi
+
+          # Write context files for next step
+          printf '%s' "$ISSUE_TITLE" > /tmp/issue-title.txt
+          printf '%s' "$ISSUE_BODY" > /tmp/issue-body.txt
+          printf '%s' "$CONTEXT" > /tmp/repo-context.txt
+          printf '%s' "$FILE_CONTENTS" > /tmp/relevant-files.txt
+
+      - name: Call Claude and apply fix
+        env:
+          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          ISSUE_TITLE=$(cat /tmp/issue-title.txt)
+          ISSUE_BODY=$(cat /tmp/issue-body.txt)
+          REPO_CONTEXT=$(cat /tmp/repo-context.txt)
+          RELEVANT_FILES=$(cat /tmp/relevant-files.txt)
+
+          BRANCH="auto-pr/${ISSUE_NUMBER}-$(echo "$ISSUE_TITLE" | \
+            tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-40)"
+
+          printf '%s\n' \
+            "You are an AI assistant that fixes GitHub issues by editing code files." \
+            "" \
+            "REPOSITORY CONTEXT:" \
+            "$REPO_CONTEXT" \
+            "" \
+            "ISSUE #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+            "$ISSUE_BODY" \
+            "" \
+            "RELEVANT FILES FOUND IN THE REPOSITORY:" \
+            "$RELEVANT_FILES" \
+            "" \
+            "INSTRUCTIONS:" \
+            "1. Analyze the issue and determine the minimal code changes needed." \
+            "2. Respond with ONLY a valid JSON object (no markdown fences) in this exact format:" \
+            '{' \
+            '  "branch": "'"$BRANCH"'",' \
+            '  "commit_message": "fix: <short description>",' \
+            '  "pr_title": "<PR title>",' \
+            '  "pr_body": "<PR body with closes #'"$ISSUE_NUMBER"' and explanation>",' \
+            '  "changes": [' \
+            '    { "file": "path/to/file.ts", "content": "<full file content after fix>" }' \
+            '  ]' \
+            '}' \
+            "3. Only include files that actually need changes." \
+            "4. Always include the full file content (not just the changed lines)." \
+            "5. Do not invent files — only modify files shown above." \
+            > /tmp/prompt.txt
+
+          RESPONSE=$(curl -sf \
+            -H "Authorization: Bearer ${LITELLM_API_KEY}" \
+            -H "Content-Type: application/json" \
+            "https://elastic.litellm-prod.ai/v1/chat/completions" \
+            -d "$(jq -n \
+              --rawfile prompt /tmp/prompt.txt \
+              '{
+                model: "llm-gateway/claude-sonnet-4-6",
+                max_tokens: 16384,
+                messages: [{role: "user", content: $prompt}]
+              }')")
+
+          CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+
+          if [ -z "$CONTENT" ]; then
+            echo "ERROR: Empty response from Claude."
+            exit 1
+          fi
+
+          # Parse the JSON response
+          echo "$CONTENT" > /tmp/claude-response.json
+
+          BRANCH=$(jq -r '.branch' /tmp/claude-response.json)
+          COMMIT_MSG=$(jq -r '.commit_message' /tmp/claude-response.json)
+          PR_TITLE=$(jq -r '.pr_title' /tmp/claude-response.json)
+          PR_BODY=$(jq -r '.pr_body' /tmp/claude-response.json)
+          NUM_CHANGES=$(jq '.changes | length' /tmp/claude-response.json)
+
+          if [ "$NUM_CHANGES" -eq 0 ]; then
+            echo "Claude proposed no file changes. Nothing to do."
+            gh issue comment "$ISSUE_NUMBER" \
+              --body "**Auto PR**: Claude analyzed the issue but determined no code changes are needed."
+            exit 0
+          fi
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git checkout -b "$BRANCH"
+
+          # Apply file changes
+          jq -c '.changes[]' /tmp/claude-response.json | while IFS= read -r change; do
+            FILE=$(echo "$change" | jq -r '.file')
+            CONTENT=$(echo "$change" | jq -r '.content')
+            mkdir -p "$(dirname "$FILE")"
+            printf '%s' "$CONTENT" > "$FILE"
+            git add "$FILE"
+            echo "Applied: $FILE"
+          done
+
+          git commit -m "$COMMIT_MSG"
+          git push --set-upstream origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --label "auto-pr")
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --body "**Auto PR** opened a fix: ${PR_URL}"
+
+          echo "PR created: $PR_URL"
