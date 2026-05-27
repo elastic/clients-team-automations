@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/catalog-info.json
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: clients-team-automations
+  description: Shared reusable GitHub Actions workflows for the Elastic clients team
+  links:
+    - title: GitHub Repository
+      url: https://github.com/elastic/clients-team-automations
+spec:
+  type: tool
+  lifecycle: production
+  owner: group:devtools-team
