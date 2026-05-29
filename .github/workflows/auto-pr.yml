@@ -64,39 +64,56 @@ jobs:
             CONTEXT="No additional context provided."
           fi
 
-          # Extract potential identifiers (type names, symbols) from the issue body
-          # Look for PascalCase words and quoted identifiers as search terms
-          TERMS=$(echo "$ISSUE_BODY" | \
-            grep -oE "'[A-Za-z_][A-Za-z0-9_.]+'" | tr -d "'" | sort -u | head -20 || true)
-          if [ -z "$TERMS" ]; then
-            TERMS=$(echo "$ISSUE_BODY" | \
-              grep -oE '\b[A-Z][a-zA-Z0-9]{3,}\b' | sort -u | head -20 || true)
-          fi
+          printf '%s' "$ISSUE_BODY" > /tmp/issue-body.txt
 
-          echo "Search terms: $TERMS"
-
-          # Find files containing those terms (limit to 10 files, 500 lines each)
           FILE_CONTENTS=""
-          if [ -n "$TERMS" ]; then
-            while IFS= read -r term; do
-              while IFS= read -r filepath; do
-                if [ -z "$filepath" ]; then continue; fi
-                if echo "$FILE_CONTENTS" | grep -q "^=== $filepath"; then continue; fi
-                FILE_CONTENTS="${FILE_CONTENTS}
-          === ${filepath} ===
-          $(head -500 "$filepath")
+          add_file() {
+            local f="$1"
+            [ -f "$f" ] || return 0
+            case "$FILE_CONTENTS" in *"=== $f ==="*) return 0 ;; esac
+            FILE_CONTENTS="${FILE_CONTENTS}
+          === ${f} ===
+          $(head -800 "$f")
           "
-                # Cap total context size
+          }
+
+          # 1. Highest priority: files explicitly cited in the issue body.
+          # Our analysis issues name the exact path to fix (e.g. specification/.../Foo.ts).
+          # Paths pointing outside this repo (e.g. Kibana's x-pack/...) simply won't exist
+          # locally and are skipped by add_file's existence check.
+          CITED_PATHS=$(grep -oE '[A-Za-z0-9_][A-Za-z0-9_./-]*\.(ts|tsx|js|mjs|yml|yaml|json)' \
+            /tmp/issue-body.txt | sort -u | head -30 || true)
+          echo "Cited paths:"
+          echo "$CITED_PATHS"
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            add_file "$p"
+            if [ "${#FILE_CONTENTS}" -gt 80000 ]; then break; fi
+          done <<< "$CITED_PATHS"
+
+          # 2. Supplement with a term-based search for type/symbol names.
+          TERMS=$(echo "$ISSUE_BODY" | \
+            grep -oE '\b[A-Z][a-zA-Z0-9]{3,}\b' | sort -u | head -20 || true)
+          echo "Search terms: $TERMS"
+          if [ -n "$TERMS" ] && [ "${#FILE_CONTENTS}" -lt 80000 ]; then
+            while IFS= read -r term; do
+              [ -z "$term" ] && continue
+              while IFS= read -r filepath; do
+                [ -z "$filepath" ] && continue
+                add_file "$filepath"
                 if [ "${#FILE_CONTENTS}" -gt 80000 ]; then break 2; fi
               done < <(grep -rl "$term" "$SEARCH_DIR" \
-                --include="*.ts" --include="*.yml" --include="*.yaml" --include="*.json" \
+                --include="*.ts" --include="*.tsx" --include="*.yml" --include="*.yaml" --include="*.json" \
                 2>/dev/null | head -5 || true)
             done <<< "$TERMS"
           fi
 
+          if [ -z "$FILE_CONTENTS" ]; then
+            echo "WARNING: no relevant files found in repo for this issue."
+          fi
+
           # Write context files for next step
           printf '%s' "$ISSUE_TITLE" > /tmp/issue-title.txt
-          printf '%s' "$ISSUE_BODY" > /tmp/issue-body.txt
           printf '%s' "$CONTEXT" > /tmp/repo-context.txt
           printf '%s' "$FILE_CONTENTS" > /tmp/relevant-files.txt
 
