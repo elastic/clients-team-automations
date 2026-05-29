@@ -162,17 +162,60 @@ jobs:
 
           if [ -z "$CONTENT" ]; then
             echo "ERROR: Empty response from Claude."
+            echo "Raw gateway response (first 500 chars):"
+            echo "$RESPONSE" | head -c 500
             exit 1
           fi
 
-          # Parse the JSON response
-          echo "$CONTENT" > /tmp/claude-response.json
+          # Claude sometimes wraps the JSON in markdown fences or adds prose around it.
+          # Extract the first balanced JSON object so downstream jq always gets valid input.
+          printf '%s' "$CONTENT" > /tmp/claude-raw.txt
+          if ! python3 - <<'PY' > /tmp/claude-response.json
+          import json, sys
+          text = open('/tmp/claude-raw.txt').read()
+          start = text.find('{')
+          if start == -1:
+              sys.exit("No JSON object found in Claude response")
+          depth = 0
+          in_str = False
+          esc = False
+          end = -1
+          for i in range(start, len(text)):
+              c = text[i]
+              if in_str:
+                  if esc:
+                      esc = False
+                  elif c == '\\':
+                      esc = True
+                  elif c == '"':
+                      in_str = False
+              else:
+                  if c == '"':
+                      in_str = True
+                  elif c == '{':
+                      depth += 1
+                  elif c == '}':
+                      depth -= 1
+                      if depth == 0:
+                          end = i + 1
+                          break
+          if end == -1:
+              sys.exit("Unbalanced JSON object in Claude response")
+          obj = json.loads(text[start:end])
+          print(json.dumps(obj))
+          PY
+          then
+            echo "ERROR: Could not parse JSON from Claude response."
+            echo "Raw content (first 800 chars):"
+            head -c 800 /tmp/claude-raw.txt
+            exit 1
+          fi
 
           BRANCH=$(jq -r '.branch' /tmp/claude-response.json)
           COMMIT_MSG=$(jq -r '.commit_message' /tmp/claude-response.json)
           PR_TITLE=$(jq -r '.pr_title' /tmp/claude-response.json)
           PR_BODY=$(jq -r '.pr_body' /tmp/claude-response.json)
-          NUM_CHANGES=$(jq '.changes | length' /tmp/claude-response.json)
+          NUM_CHANGES=$(jq '(.changes // []) | length' /tmp/claude-response.json)
 
           if [ "$NUM_CHANGES" -eq 0 ]; then
             echo "Claude proposed no file changes. Nothing to do."
