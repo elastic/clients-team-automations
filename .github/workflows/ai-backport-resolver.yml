@@ -17,6 +17,21 @@ on:
         description: "PR number the comment was posted on"
         type: number
         required: true
+      node_version:
+        description: "If set, install this Node.js version (needed when regenerate_command uses npm/make)"
+        type: string
+        required: false
+        default: ""
+      generated_paths:
+        description: "Space-separated path prefixes for generated files. These are NOT sent to Claude; they are rebuilt via regenerate_command instead. Example: 'output/'"
+        type: string
+        required: false
+        default: ""
+      regenerate_command:
+        description: "Shell command that regenerates the generated_paths from the resolved sources (e.g. 'make setup && make compile && make generate'). Required for generated_paths handling to take effect."
+        type: string
+        required: false
+        default: ""
     secrets:
       LITELLM_API_KEY:
         description: "API key for elastic.litellm-prod.ai"
@@ -30,6 +45,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      workflows: write
     steps:
       - name: Check comment is a backport failure
         id: check
@@ -56,6 +72,12 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ github.token }}
+
+      - name: Setup Node.js
+        if: steps.check.outputs.should_resolve == 'true' && inputs.node_version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
 
       - name: Parse comment and attempt cherry-pick
         if: steps.check.outputs.should_resolve == 'true'
@@ -114,8 +136,24 @@ jobs:
           BASE_BRANCH: ${{ steps.cherry-pick.outputs.base_branch }}
           REPO_SLUG: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          GENERATED_PATHS: ${{ inputs.generated_paths }}
+          REGENERATE_COMMAND: ${{ inputs.regenerate_command }}
         run: |
           set -euo pipefail
+
+          # A file is "generated" if it starts with one of GENERATED_PATHS and a
+          # regenerate command is configured. Such files are rebuilt from source in
+          # the finalize step rather than being sent to Claude (they are typically
+          # huge build artifacts that neither fit in context nor should be hand-merged).
+          is_generated() {
+            local f="$1"
+            [ -n "${REGENERATE_COMMAND}" ] || return 1
+            local prefix
+            for prefix in ${GENERATED_PATHS}; do
+              case "$f" in "${prefix}"*) return 0 ;; esac
+            done
+            return 1
+          }
 
           PR_DIFF=$(curl -sL \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -124,6 +162,8 @@ jobs:
 
           RESOLVED_FILES=()
           FAILED_FILES=()
+          GENERATED_FILES=()
+          : > /tmp/generated-files.txt
 
           resolve_file() {
             local filepath="$1"
@@ -162,18 +202,22 @@ jobs:
               "3. Apply the intent of the cherry-picked change onto the target branch code." \
               "4. Output ONLY the complete resolved file. No markdown fences, no commentary." \
               > /tmp/prompt-"${filepath//\//-}".txt
-            prompt=$(cat /tmp/prompt-"${filepath//\//-}".txt)
+
+            # Build the request body and prompt via files (never as CLI args) so large
+            # conflicted files don't blow past ARG_MAX ("Argument list too long").
+            local payloadfile="/tmp/payload-${filepath//\//-}.json"
+            jq -n --rawfile prompt /tmp/prompt-"${filepath//\//-}".txt '{
+              model: "llm-gateway/claude-sonnet-4-6",
+              max_tokens: 16384,
+              messages: [{role: "user", content: $prompt}]
+            }' > "$payloadfile"
 
             local response
             response=$(curl -sf \
               -H "Authorization: Bearer ${LITELLM_API_KEY}" \
               -H "Content-Type: application/json" \
               "https://elastic.litellm-prod.ai/v1/chat/completions" \
-              -d "$(jq -n --arg prompt "$prompt" '{
-                model: "llm-gateway/claude-sonnet-4-6",
-                max_tokens: 16384,
-                messages: [{role: "user", content: $prompt}]
-              }')")
+              --data-binary @"$payloadfile")
 
             local resolved
             resolved=$(echo "$response" | jq -r '.choices[0].message.content // empty')
@@ -193,6 +237,12 @@ jobs:
           }
 
           while IFS= read -r filepath; do
+            if is_generated "$filepath"; then
+              echo "Deferring (generated, will regenerate): $filepath"
+              GENERATED_FILES+=("$filepath")
+              echo "$filepath" >> /tmp/generated-files.txt
+              continue
+            fi
             echo "Resolving: $filepath"
             if resolve_file "$filepath"; then
               RESOLVED_FILES+=("$filepath")
@@ -201,7 +251,7 @@ jobs:
             fi
           done < /tmp/conflicted-files.txt
 
-          echo "Resolved: ${#RESOLVED_FILES[@]} file(s), Failed: ${#FAILED_FILES[@]} file(s)"
+          echo "Resolved: ${#RESOLVED_FILES[@]} file(s), Failed: ${#FAILED_FILES[@]} file(s), Deferred (generated): ${#GENERATED_FILES[@]} file(s)"
 
           if [ ${#FAILED_FILES[@]} -gt 0 ]; then
             echo "failed_files=$(IFS=,; echo "${FAILED_FILES[*]}")" >> "$GITHUB_OUTPUT"
@@ -209,9 +259,35 @@ jobs:
 
           resolved_list=""
           for f in "${RESOLVED_FILES[@]}"; do resolved_list="${resolved_list}- ${f}\n"; done
+          for f in "${GENERATED_FILES[@]}"; do resolved_list="${resolved_list}- ${f} (regenerated)\n"; done
           echo "resolved_list<<EOF" >> "$GITHUB_OUTPUT"
           printf "%b" "$resolved_list" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate generated files and finalize cherry-pick
+        if: steps.check.outputs.should_resolve == 'true' && steps.cherry-pick.outputs.conflicts == 'true'
+        env:
+          GENERATED_PATHS: ${{ inputs.generated_paths }}
+          REGENERATE_COMMAND: ${{ inputs.regenerate_command }}
+        run: |
+          set -euo pipefail
+
+          # Rebuild any deferred generated files from the now-resolved sources.
+          if [ -s /tmp/generated-files.txt ] && [ -n "${REGENERATE_COMMAND}" ]; then
+            echo "Regenerating generated files via: ${REGENERATE_COMMAND}"
+            bash -c "${REGENERATE_COMMAND}"
+            for prefix in ${GENERATED_PATHS}; do
+              git add "${prefix}" || true
+            done
+          fi
+
+          # Bail out (rather than commit conflict markers) if anything is still unmerged.
+          UNMERGED=$(git diff --name-only --diff-filter=U || true)
+          if [ -n "$UNMERGED" ]; then
+            echo "ERROR: files still unmerged after resolution/regeneration:"
+            echo "$UNMERGED"
+            exit 1
+          fi
 
           GIT_EDITOR=true git cherry-pick --continue
 
