@@ -290,6 +290,28 @@ jobs:
 
           GIT_EDITOR=true git cherry-pick --continue
 
+      - name: Reset workflow files to base branch
+        if: steps.check.outputs.should_resolve == 'true'
+        id: reset-workflows
+        env:
+          BASE_BRANCH: ${{ steps.cherry-pick.outputs.base_branch }}
+        run: |
+          set -euo pipefail
+          # GITHUB_TOKEN cannot push changes to .github/workflows/ files.
+          # Reset them to the base branch state so the push succeeds, and
+          # record which files were skipped for the PR description.
+          SKIPPED=$(git diff "$BASE_BRANCH" HEAD -- '.github/workflows/' --name-only 2>/dev/null || true)
+          if [ -n "$SKIPPED" ]; then
+            git checkout "$BASE_BRANCH" -- '.github/workflows/'
+            git add .github/workflows/
+            git commit --amend --no-edit
+            echo "Skipped workflow files (apply manually after merge):"
+            echo "$SKIPPED"
+          fi
+          echo "skipped_workflows<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$SKIPPED" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Push backport branch and create PR
         if: steps.check.outputs.should_resolve == 'true'
         env:
@@ -301,6 +323,7 @@ jobs:
           CONFLICTS: ${{ steps.cherry-pick.outputs.conflicts }}
           RESOLVED_LIST: ${{ steps.resolve.outputs.resolved_list }}
           FAILED_FILES: ${{ steps.resolve.outputs.failed_files }}
+          SKIPPED_WORKFLOWS: ${{ steps.reset-workflows.outputs.skipped_workflows }}
         run: |
           set -euo pipefail
 
@@ -308,7 +331,7 @@ jobs:
 
           FULL_TITLE="[${BASE_BRANCH}] ${PR_TITLE}"
 
-          if [ "$CONFLICTS" == "false" ]; then
+          if [ "$CONFLICTS" == "false" ] && [ -z "${SKIPPED_WORKFLOWS:-}" ]; then
             PR_BODY="Backport #${PR_NUMBER} to \`${BASE_BRANCH}\` (no conflicts)."
           else
             printf '%s\n' \
@@ -327,6 +350,16 @@ jobs:
             else
               printf '%s\n' \
                 "> **Please review the AI-resolved conflicts carefully before merging.**" \
+                >> /tmp/pr-body.txt
+            fi
+            if [ -n "${SKIPPED_WORKFLOWS:-}" ]; then
+              printf '%s\n' \
+                "" \
+                "### Skipped workflow files" \
+                "" \
+                "The following files under \`.github/workflows/\` were reset to the base branch state because \`GITHUB_TOKEN\` cannot push workflow file changes. Apply them manually after merging:" \
+                "" \
+                "${SKIPPED_WORKFLOWS}" \
                 >> /tmp/pr-body.txt
             fi
             PR_BODY=$(cat /tmp/pr-body.txt)
