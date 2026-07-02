@@ -211,18 +211,27 @@ jobs:
               messages: [{role: "user", content: $prompt}]
             }' > "$payloadfile"
 
-            local response
-            response=$(curl -sf \
+            local response http_status
+            local responsefile="/tmp/llm-response-${filepath//\//-}.json"
+            http_status=$(curl -s -o "$responsefile" -w "%{http_code}" \
               -H "Authorization: Bearer ${LITELLM_API_KEY}" \
               -H "Content-Type: application/json" \
               "https://elastic.litellm-prod.ai/v1/chat/completions" \
               --data-binary @"$payloadfile")
+            response=$(cat "$responsefile")
+
+            if [ "$http_status" -ne 200 ]; then
+              echo "  ERROR: LiteLLM returned HTTP ${http_status} for ${filepath}:"
+              echo "  $(echo "$response" | jq -r '.error.message // .message // .' 2>/dev/null || cat "$responsefile")"
+              return 1
+            fi
 
             local resolved
             resolved=$(echo "$response" | jq -r '.choices[0].message.content // empty')
 
             if [ -z "$resolved" ]; then
-              echo "  ERROR: Empty response from Claude for ${filepath}"
+              echo "  ERROR: Empty content in LiteLLM response for ${filepath}:"
+              echo "  $response"
               return 1
             fi
             if echo "$resolved" | grep -qE '^(<<<<<<<|=======|>>>>>>>)'; then
