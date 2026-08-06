@@ -10,7 +10,7 @@ Shared reusable GitHub Actions workflows for Elastic client repositories.
 
 ### 1. `auto-pr.yml` — AI-driven issue fix
 
-Reads a GitHub issue, finds relevant files in your repo, calls Claude (via LiteLLM) to produce a fix, and opens a PR. Triggered by adding an `auto-pr` label (or any label starting with `auto-pr:`) to an issue.
+Reads a GitHub issue, finds relevant files in your repo, calls Claude (via OpenRouter) to produce a fix, and opens a PR. Triggered by adding an `auto-pr` label (or any label starting with `auto-pr:`) to an issue.
 
 #### Setup
 
@@ -31,7 +31,8 @@ jobs:
       issue_number: ${{ github.event.issue.number }}
       search_directory: src   # optional — directory to search for relevant files
     secrets:
-      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_BASE_URL }}
 ```
 
 **Step 2** — Add a context file at `.github/auto-pr-context.md` in your repo:
@@ -53,7 +54,7 @@ Brief description of what this repo contains and what kinds of issues are expect
 - Mention what identifiers or patterns in the issue body map to which directories
 ```
 
-**Step 3** — Add `LITELLM_API_KEY` as a repository secret (Settings → Secrets → Actions).
+**Step 3** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` (`https://openrouter.ai/api/v1`) as repository secrets (Settings → Secrets → Actions).
 
 **Step 4** — Create the `auto-pr` label in your repo (Settings → Labels), or use `auto-pr: <context>` for a more descriptive variant.
 

@@ -20,9 +20,12 @@ on:
         type: string
         default: "."
     secrets:
-      LITELLM_API_KEY:
-        description: "API key for elastic.litellm-prod.ai"
+      OPENROUTER_API_KEY:
+        description: "API key for openrouter.ai"
         required: true
+      OPENROUTER_BASE_URL:
+        description: "Base URL for the OpenRouter API (e.g. https://openrouter.ai/api/v1)"
+        required: false
 
 jobs:
   create-pr:
@@ -119,7 +122,8 @@ jobs:
 
       - name: Call Claude and apply fix
         env:
-          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_BASE_URL }}
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           REPO: ${{ github.repository }}
@@ -163,14 +167,15 @@ jobs:
             "5. Do not invent files — only modify files shown above." \
             > /tmp/prompt.txt
 
+          BASE_URL="${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
           RESPONSE=$(curl -sf \
-            -H "Authorization: Bearer ${LITELLM_API_KEY}" \
+            -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
             -H "Content-Type: application/json" \
-            "https://elastic.litellm-prod.ai/v1/chat/completions" \
+            "${BASE_URL%/}/chat/completions" \
             -d "$(jq -n \
               --rawfile prompt /tmp/prompt.txt \
               '{
-                model: "llm-gateway/claude-sonnet-4-6",
+                model: "anthropic/claude-sonnet-4.6",
                 max_tokens: 16384,
                 messages: [{role: "user", content: $prompt}]
               }')")
