@@ -1,6 +1,6 @@
 name: AI Backport Resolver
 # Reusable workflow - called by client repos when the backport bot posts a failure comment.
-# Parses the comment, cherry-picks the commit, uses Claude (via LiteLLM) to resolve any
+# Parses the comment, cherry-picks the commit, uses Claude (via OpenRouter) to resolve any
 # conflicts, and opens the backport PR.
 on:
   workflow_call:
@@ -33,9 +33,12 @@ on:
         required: false
         default: ""
     secrets:
-      LITELLM_API_KEY:
-        description: "API key for elastic.litellm-prod.ai"
+      OPENROUTER_API_KEY:
+        description: "API key for openrouter.ai"
         required: true
+      OPENROUTER_BASE_URL:
+        description: "Base URL for the OpenRouter API"
+        required: false
 
 jobs:
   resolve:
@@ -125,11 +128,12 @@ jobs:
             cat /tmp/conflicted-files.txt
           fi
 
-      - name: Resolve conflicts with Claude via LiteLLM
+      - name: Resolve conflicts with Claude via OpenRouter
         if: steps.check.outputs.should_resolve == 'true' && steps.cherry-pick.outputs.conflicts == 'true'
         id: resolve
         env:
-          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_BASE_URL }}
           PR_NUMBER: ${{ inputs.pr_number }}
           COMMIT_SHA: ${{ steps.cherry-pick.outputs.commit_sha }}
           BASE_BRANCH: ${{ steps.cherry-pick.outputs.base_branch }}
@@ -206,22 +210,23 @@ jobs:
             # conflicted files don't blow past ARG_MAX ("Argument list too long").
             local payloadfile="/tmp/payload-${filepath//\//-}.json"
             jq -n --rawfile prompt /tmp/prompt-"${filepath//\//-}".txt '{
-              model: "llm-gateway/claude-sonnet-4-6",
+              model: "anthropic/claude-sonnet-4.6",
               max_tokens: 16384,
               messages: [{role: "user", content: $prompt}]
             }' > "$payloadfile"
 
             local response http_status
             local responsefile="/tmp/llm-response-${filepath//\//-}.json"
+            local base_url="${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
             http_status=$(curl -s -o "$responsefile" -w "%{http_code}" \
-              -H "Authorization: Bearer ${LITELLM_API_KEY}" \
+              -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
               -H "Content-Type: application/json" \
-              "https://elastic.litellm-prod.ai/v1/chat/completions" \
+              "${base_url%/}/chat/completions" \
               --data-binary @"$payloadfile")
             response=$(cat "$responsefile")
 
             if [ "$http_status" -ne 200 ]; then
-              echo "  ERROR: LiteLLM returned HTTP ${http_status} for ${filepath}:"
+              echo "  ERROR: OpenRouter returned HTTP ${http_status} for ${filepath}:"
               echo "  $(echo "$response" | jq -r '.error.message // .message // .' 2>/dev/null || cat "$responsefile")"
               return 1
             fi
@@ -230,7 +235,7 @@ jobs:
             resolved=$(echo "$response" | jq -r '.choices[0].message.content // empty')
 
             if [ -z "$resolved" ]; then
-              echo "  ERROR: Empty content in LiteLLM response for ${filepath}:"
+              echo "  ERROR: Empty content in OpenRouter response for ${filepath}:"
               echo "  $response"
               return 1
             fi

@@ -93,16 +93,23 @@ on:
 
 jobs:
   resolve:
+    if: |
+      (github.event.comment.user.login == 'github-actions[bot]' ||
+       github.event.comment.user.login == 'elastic-vault-github-plugin-prod[bot]') &&
+      contains(github.event.comment.body, 'To backport manually, run these commands')
     uses: elastic/clients-team-automations/.github/workflows/ai-backport-resolver.yml@main
     with:
       comment_body: ${{ github.event.comment.body }}
       comment_user: ${{ github.event.comment.user.login }}
       pr_number: ${{ github.event.issue.number }}
     secrets:
-      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_BASE_URL }}
 ```
 
-**Step 2** — Add `LITELLM_API_KEY` as a repository secret.
+The job-level `if` filters out unrelated comments before the reusable workflow is even invoked, so the repo's Actions tab isn't full of runs for every comment.
+
+**Step 2** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` as repository secrets.
 
 #### How it works
 
