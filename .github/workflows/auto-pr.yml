@@ -24,7 +24,7 @@ on:
         description: "API key for openrouter.ai"
         required: true
       OPENROUTER_BASE_URL:
-        description: "Base URL for the OpenRouter API (e.g. https://openrouter.ai/api/v1)"
+        description: "Base URL for the OpenRouter API"
         required: false
 
 jobs:
