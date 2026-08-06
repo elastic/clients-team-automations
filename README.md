@@ -109,7 +109,7 @@ jobs:
 
 The job-level `if` filters out unrelated comments before the reusable workflow is even invoked, so the repo's Actions tab isn't full of runs for every comment.
 
-**Step 2** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` (`https://openrouter.ai/api/v1`) as repository secrets.
+**Step 2** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` as repository secrets.
 
 #### How it works
 
