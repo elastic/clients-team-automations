@@ -54,7 +54,7 @@ Brief description of what this repo contains and what kinds of issues are expect
 - Mention what identifiers or patterns in the issue body map to which directories
 ```
 
-**Step 3** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` (`https://openrouter.ai/api/v1`) as repository secrets (Settings → Secrets → Actions).
+**Step 3** — Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` as repository secrets (Settings → Secrets → Actions).
 
 **Step 4** — Create the `auto-pr` label in your repo (Settings → Labels), or use `auto-pr: <context>` for a more descriptive variant.
 
