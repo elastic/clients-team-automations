@@ -2,7 +2,7 @@
 
 A GitHub Action that detects edits to generated files in pull requests, with configurable patterns and customizable commenting.
 
-See [gencheck.yml](../.github/workflows/gencheck.yml) for an example usage.
+See the usage example below.
 
 ## Usage
 
