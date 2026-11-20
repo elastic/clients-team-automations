@@ -100,6 +100,9 @@ type Skill {
     """Line count of the markdown body (excluding frontmatter)."""
     body_line_count: Int!
 
+    """Size of the markdown body (excluding frontmatter) in UTF-8 bytes."""
+    body_byte_count: Int!
+
     """Whether the body starts with a level-1 heading."""
     has_title_heading: Boolean!
 
