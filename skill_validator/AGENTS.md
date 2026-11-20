@@ -236,6 +236,7 @@ type Skill {
   # Body properties
   total_line_count: Int! # Total lines in SKILL.md
   body_line_count: Int! # Lines in body (excluding frontmatter)
+  body_byte_count: Int! # UTF-8 bytes in body (excluding frontmatter)
   has_title_heading: Boolean! # Whether body starts with # heading
   title_heading: String # Text of first # heading (nullable)
   # Edges (nested objects)

@@ -31,6 +31,7 @@ pub struct MarkdownStructure {
     pub has_title_heading: bool,
     pub title_heading: Option<String>,
     pub body_line_count: i64,
+    pub body_byte_count: i64,
     pub links: Vec<MarkdownLinkData>,
 }
 
@@ -60,6 +61,7 @@ fn byte_offset_to_line(line_index: &[usize], offset: usize) -> usize {
 
 pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
     let body_line_count = body.lines().count() as i64;
+    let body_byte_count = body.len() as i64;
     let line_index = build_line_index(body);
 
     let mut sections: Vec<SectionData> = Vec::new();
@@ -228,6 +230,7 @@ pub fn parse_markdown(body: &str, body_start_line: usize) -> MarkdownStructure {
         has_title_heading,
         title_heading,
         body_line_count,
+        body_byte_count,
         links,
     }
 }
@@ -261,6 +264,13 @@ mod tests {
         assert_eq!(result.sections.len(), 3);
         assert_eq!(result.sections[1].heading, "Examples");
         assert_eq!(result.sections[2].heading, "Guidelines");
+    }
+
+    #[test]
+    fn body_byte_count_counts_utf8_bytes() {
+        let result = parse_markdown("# Café\n", 1);
+        assert_eq!(result.body_line_count, 1);
+        assert_eq!(result.body_byte_count, 8);
     }
 
     #[test]
