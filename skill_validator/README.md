@@ -162,6 +162,22 @@ skill-validator query -q '{
 }' -a '{"threshold": 200}'
 ```
 
+**Skills whose body exceeds a byte budget:**
+
+```bash
+skill-validator query -q '{
+    Skill {
+        skill_file_path @output
+        body_byte_count @filter(op: ">", value: ["$max_bytes"]) @output
+    }
+}' -a '{"max_bytes": 20000}'
+```
+
+`body_byte_count` measures the markdown body in UTF-8 bytes, excluding
+frontmatter, so multi-byte characters count as more than one. Use it instead of
+`body_line_count` when the limit you care about is size on disk or context
+budget rather than line count.
+
 **Find skills without an Examples section:**
 
 ```bash
