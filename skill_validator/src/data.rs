@@ -68,6 +68,7 @@ pub struct SkillData {
 
     pub total_line_count: i64,
     pub body_line_count: i64,
+    pub body_byte_count: i64,
     pub has_title_heading: bool,
     pub title_heading: Option<String>,
 
@@ -376,6 +377,7 @@ pub fn load_skills_data(
                 description_word_count: desc_words,
                 total_line_count,
                 body_line_count: md.body_line_count,
+                body_byte_count: md.body_byte_count,
                 has_title_heading: md.has_title_heading,
                 title_heading: md.title_heading,
                 metadata: metadata_entries,

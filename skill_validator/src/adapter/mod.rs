@@ -157,6 +157,9 @@ impl<'a> BasicAdapter<'a> for SkillsAdapter {
             ("Skill", "body_line_count") => resolve_property_with(contexts, |v| {
                 v.as_skill().unwrap().body_line_count.into()
             }),
+            ("Skill", "body_byte_count") => resolve_property_with(contexts, |v| {
+                v.as_skill().unwrap().body_byte_count.into()
+            }),
             ("Skill", "has_title_heading") => resolve_property_with(contexts, |v| {
                 v.as_skill().unwrap().has_title_heading.into()
             }),

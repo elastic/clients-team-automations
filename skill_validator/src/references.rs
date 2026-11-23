@@ -316,14 +316,9 @@ fn extract_shell_references(content: &str, file_rel_path: &str) -> Vec<Reference
 fn extract_shell_source(line: &str) -> Option<&str> {
     let rest = if let Some(r) = line.strip_prefix("source ") {
         r
-    } else if let Some(r) = line.strip_prefix(". ") {
-        // Make sure it's `. path` not `.. path`
-        if line.starts_with(".. ") {
-            return None;
-        }
-        r
     } else {
-        return None;
+        // Make sure it's `. path` not `.. path`
+        line.strip_prefix(". ").filter(|_| !line.starts_with(".. "))?
     };
 
     let path = rest.trim();
